@@ -423,4 +423,32 @@ describe("store — createPoll validation", () => {
     // unknown id returns null
     expect(await getPoll("no-such-id-xyz")).toBeNull();
   });
+
+  it("returns 404/null for unknown poll id (explicit unknown-id handling via voteOnPoll + getPoll)", async () => {
+    resetMock();
+    const { getPoll, voteOnPoll } = await import("./store");
+    // getPoll unknown id is null (standalone, not just as side-effect of round-trip)
+    expect(await getPoll("unknown-poll-id-zzz-999")).toBeNull();
+    expect(await getPoll("")).toBeNull();
+    expect(await getPoll("no-such-id-xyz-does-not-exist")).toBeNull();
+    // voteOnPoll with unknown poll_id must be 404 Poll not found (fresh IP/cookie, mock mode)
+    const r = await voteOnPoll({
+      poll_id: "unknown-poll-id-zzz-999",
+      option_id: "opt-does-not-matter",
+      voter_cookie: "test-voter-unknown-404",
+      ip: "9.9.9.99",
+    });
+    expect(r).toMatchObject({ status: 404 });
+    if ("error" in (r as { error: string; status: number })) {
+      expect((r as { error: string }).error).toMatch(/not found/i);
+    }
+    // empty poll_id also 404
+    const r2 = await voteOnPoll({
+      poll_id: "",
+      option_id: "x",
+      voter_cookie: "voter2-unknown-404",
+      ip: "9.9.9.98",
+    });
+    expect(r2).toMatchObject({ status: 404 });
+  });
 });
