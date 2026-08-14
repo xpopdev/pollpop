@@ -1494,4 +1494,98 @@ describe("store — createPoll validation", () => {
     expect(refetch1!.options[0].thumb_url).toBeNull();
     expect(refetch1!.options[1].thumb_url).toBe(thumbB);
   });
+
+  it("voteOnPoll returns 404 when poll has been deleted — deleted poll handling (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll, voteOnPoll } = await import("./store");
+    const created = await createPoll({
+      title: "Delete then vote — 404",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/deleted-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/deleted-b/600/600" },
+      ],
+      creator_cookie: "deleted-cid",
+      ip: "27.27.27.1",
+    });
+    expect("poll" in created, `expected poll, got ${JSON.stringify(created)}`).toBe(true);
+    if (!("poll" in created)) return;
+    const poll = created.poll;
+    expect(poll.options).toHaveLength(2);
+    const optA = poll.options[0];
+    const optB = poll.options[1];
+
+    // second poll — proves isolation after delete (other poll still voteable)
+    const created2 = await createPoll({
+      title: "Second poll stays after first deleted",
+      options: [
+        { label: "X", image_url: "https://picsum.photos/seed/deleted2-a/600/600" },
+        { label: "Y", image_url: "https://picsum.photos/seed/deleted2-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "27.27.27.2",
+    });
+    expect("poll" in created2, `expected second poll, got ${JSON.stringify(created2)}`).toBe(true);
+    if (!("poll" in created2)) return;
+    const poll2 = created2.poll;
+
+    // pre-condition: getPoll + vote both succeed before delete
+    expect(await getPoll(poll.id)).not.toBeNull();
+    const preVote = await voteOnPoll({ poll_id: poll.id, option_id: optA.id, voter_cookie: "deleted-pre-voter", ip: "27.27.27.10" });
+    expect("counts" in preVote, `expected pre-delete vote to succeed, got ${JSON.stringify(preVote)}`).toBe(true);
+    if (!("counts" in preVote)) return;
+    expect(preVote.total).toBe(1);
+
+    // --- simulate delete: remove poll from mock store (file-based loop — no prod DB needed) ---
+    const mockDb = (globalThis as unknown as { __pollpop_mock?: { polls: import("./types").Poll[]; votes: unknown[] } }).__pollpop_mock;
+    expect(mockDb).toBeDefined();
+    const idx = mockDb!.polls.findIndex((p) => p.id === poll.id);
+    expect(idx).not.toBe(-1);
+    const deletedId = mockDb!.polls[idx].id;
+    const deletedOptId = mockDb!.polls[idx].options[0].id;
+    mockDb!.polls.splice(idx, 1);
+    // also drop votes for deleted poll to simulate cascade (defense-in-depth)
+    (mockDb!.votes as { poll_id: string }[]).splice(0, mockDb!.votes.length, ...(mockDb!.votes as { poll_id: string }[]).filter((v) => v.poll_id !== deletedId));
+
+    // getPoll must now be null — deleted poll not found
+    expect(await getPoll(poll.id)).toBeNull();
+    expect(await getPoll(deletedId)).toBeNull();
+
+    // voteOnPoll on deleted poll must be 404 Poll not found — same path as unknown id, but triggered by deletion
+    const r1 = await voteOnPoll({ poll_id: poll.id, option_id: optA.id, voter_cookie: "deleted-voter-1", ip: "27.27.27.11" });
+    expect(r1).toMatchObject({ status: 404 });
+    if ("error" in (r1 as { error: string; status: number })) {
+      expect((r1 as { error: string }).error).toMatch(/not found/i);
+    }
+    // same with deletedOptId explicitly — still 404 not 400 (poll check fires first)
+    const r2 = await voteOnPoll({ poll_id: deletedId, option_id: deletedOptId, voter_cookie: "deleted-voter-2", ip: "27.27.27.12" });
+    expect(r2).toMatchObject({ status: 404 });
+    if ("error" in (r2 as { error: string; status: number })) {
+      expect((r2 as { error: string }).error).toMatch(/not found/i);
+    }
+    // any option_id on deleted poll is 404 — including the other option and nonsense id
+    const r3 = await voteOnPoll({ poll_id: deletedId, option_id: optB.id, voter_cookie: "deleted-voter-3", ip: "27.27.27.13" });
+    expect(r3).toMatchObject({ status: 404 });
+    const r4 = await voteOnPoll({ poll_id: deletedId, option_id: "nonsense-opt", voter_cookie: "deleted-voter-4", ip: "27.27.27.14" });
+    expect(r4).toMatchObject({ status: 404 });
+    // empty poll_id after delete context — also 404
+    const rEmpty = await voteOnPoll({ poll_id: "", option_id: optA.id, voter_cookie: "deleted-voter-5", ip: "27.27.27.15" });
+    expect(rEmpty).toMatchObject({ status: 404 });
+
+    // isolation: second poll unaffected — still fetchable and voteable
+    const fresh2 = await getPoll(poll2.id);
+    expect(fresh2).not.toBeNull();
+    expect(fresh2!.id).toBe(poll2.id);
+    expect(fresh2!.options).toHaveLength(2);
+    const ok = await voteOnPoll({ poll_id: poll2.id, option_id: poll2.options[0].id, voter_cookie: "deleted-isolation-voter", ip: "27.27.27.20" });
+    expect("counts" in ok, `expected vote on surviving poll to succeed, got ${JSON.stringify(ok)}`).toBe(true);
+    if (!("counts" in ok)) return;
+    expect(ok.total).toBe(1);
+    expect(ok.counts[poll2.options[0].id]).toBe(1);
+    // cross-check: deleted poll's option_id is not valid on surviving poll — 400 Option not found, not 404
+    const cross = await voteOnPoll({ poll_id: poll2.id, option_id: deletedOptId, voter_cookie: "deleted-cross-voter", ip: "27.27.27.21" });
+    expect(cross).toMatchObject({ status: 400 });
+    if ("error" in (cross as { error: string; status: number })) {
+      expect((cross as { error: string }).error).toMatch(/Option not found/i);
+    }
+  });
 });
