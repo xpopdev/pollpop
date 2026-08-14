@@ -165,16 +165,16 @@ export default function PollClient({ id }: { id: string }) {
     }
   };
 
-  if (loading) return <div className="poll-wrap"><div className="card" style={{padding:18, textAlign:"center", color:"var(--muted)", fontWeight:700}}>Loading poll…</div></div>;
-  if (err || !poll) return <div className="poll-wrap"><div className="card" style={{padding:18}}><b>Poll not found</b><p style={{color:"var(--muted)",fontSize:13}}>{err || "No poll with that id."} <a href="/" style={{textDecoration:"underline"}}>Create one →</a></p></div></div>;
+  if (loading) return <div className="poll-wrap" style={{background:"#f0eee6"}}><div className="card" style={{padding:18, textAlign:"center", color:"#b0aea5", fontWeight:700, background:"#faf9f5", border:"1px solid #cccbc8", borderRadius:"24px", fontFamily:"var(--font-anthropic-sans, ui-sans-serif, system-ui, sans-serif)"}}>Loading poll…</div></div>;
+  if (err || !poll) return <div className="poll-wrap" style={{background:"#f0eee6"}}><div className="card" style={{padding:18, background:"#faf9f5", border:"1px solid #cccbc8", borderRadius:"24px"}}><b style={{color:"#141413", fontFamily:"var(--font-anthropic-serif, ui-serif, Georgia, serif)"}}>Poll not found</b><p style={{color:"#b0aea5",fontSize:13, fontFamily:"var(--font-anthropic-sans, ui-sans-serif, system-ui, sans-serif)"}}>{err || "No poll with that id."} <a href="/" style={{textDecoration:"underline", textDecorationColor:"#cccbc8", color:"#141413"}}>Create one →</a></p></div></div>;
 
   const total = poll.options.reduce((a,o)=>a+o.votes,0);
   const search = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
   const justCreated = search?.get("created") === "1";
 
   return (
-    <div className="poll-wrap">
-      {justCreated && <div style={{background:"linear-gradient(135deg,#ecfdf5,#f0fdfa)",border:"1px solid #a7f3d0",padding:"10px 12px",borderRadius:12,marginBottom:12,fontSize:13,fontWeight:700}}>Your poll is live — share the link below to start getting votes 🎉</div>}
+    <div className="poll-wrap" style={{background:"#f0eee6"}}>
+      {justCreated && <div style={{background:"#f5e3c7",border:"1px solid #cccbc8",padding:"10px 12px",borderRadius:12,marginBottom:12,fontSize:13,fontWeight:700,color:"#141413",fontFamily:"var(--font-anthropic-sans, ui-sans-serif, system-ui, sans-serif)"}}>Your poll is live — share the link below to start getting votes</div>}
 
       <div className="breadcrumb"><a href="/">← Home</a> <span>·</span> <span>p/{poll.id}</span></div>
 
