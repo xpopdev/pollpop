@@ -280,4 +280,41 @@ describe("store — createPoll validation", () => {
     });
     expect(limited).toMatchObject({ status: 429, code: "RATE_LIMITED", retry_after: 86400 });
   });
+
+  it("rejects data URL >6MB in mock mode (400) — 6MB guard", async () => {
+    resetMock();
+    const { createPoll } = await import("./store");
+    // just over 6MB raw bytes → ~8MB base64, deterministic, mock mode only
+    const bigBuf = Buffer.alloc(6 * 1024 * 1024 + 1, 0);
+    const bigB64 = bigBuf.toString("base64");
+    const bigDataUrl = `data:image/png;base64,${bigB64}`;
+    const res = await createPoll({
+      title: "6MB guard test",
+      options: [
+        { label: "A", image_url: bigDataUrl },
+        { label: "B", image_url: "https://picsum.photos/seed/guard-b/600/600" },
+      ],
+      creator_cookie: "guard-cid",
+      ip: "8.8.8.8",
+    });
+    expect(res).toMatchObject({ status: 400 });
+    if ("error" in (res as { error: string; status: number })) {
+      expect((res as { error: string }).error).toMatch(/6 MB|too large/i);
+    }
+    // exactly 6MB should still be accepted (boundary)
+    resetMock();
+    const buf6 = Buffer.alloc(6 * 1024 * 1024, 0);
+    const b64_6 = buf6.toString("base64");
+    const url6 = `data:image/png;base64,${b64_6}`;
+    const ok = await createPoll({
+      title: "6MB boundary ok",
+      options: [
+        { label: "A", image_url: url6 },
+        { label: "B", image_url: "https://picsum.photos/seed/guard-b2/600/600" },
+      ],
+      creator_cookie: "guard-cid2",
+      ip: "8.8.8.9",
+    });
+    expect("poll" in ok, `expected poll at exactly 6MB, got ${JSON.stringify(ok).slice(0, 200)}`).toBe(true);
+  });
 });

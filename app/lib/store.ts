@@ -174,6 +174,25 @@ export async function createPoll(input: {
     if (!o.label.trim() || o.label.trim().length > 24) return { error: "Each label 1–24 chars", status: 400 };
     if (!o.image_url.trim()) return { error: "Each option needs an image", status: 400 };
     try { new URL(o.image_url); } catch { return { error: `Invalid image URL: ${o.image_url}`, status: 400 }; }
+    // RT-BUG-18 defense-in-depth: enforce 6MB data URL cap also at store layer (route already guards, but direct createPoll callers hit here)
+    if (o.image_url.trim().startsWith("data:")) {
+      const DATA_URL_MAX_BYTES = 6 * 1024 * 1024;
+      const m = o.image_url.trim().match(/^data:([^;,]+)(;base64)?,(.*)$/);
+      if (!m) return { error: "Invalid image data URL", status: 400 };
+      const mime = m[1].trim();
+      if (!mime.startsWith("image/")) return { error: "Only image data URLs are allowed", status: 400 };
+      const isBase64 = !!m[2];
+      const data = m[3];
+      let bufLen: number;
+      try {
+        const buf = isBase64 ? Buffer.from(data, "base64") : Buffer.from(decodeURIComponent(data), "utf-8");
+        bufLen = buf.length;
+      } catch {
+        return { error: "Invalid image data URL", status: 400 };
+      }
+      if (bufLen === 0) return { error: "Empty image upload", status: 400 };
+      if (bufLen > DATA_URL_MAX_BYTES) return { error: "Image too large — max 6 MB", status: 400 };
+    }
   }
   // basic profanity filter (MVP) — word boundaries, not substring, to avoid "xxx" in "X".repeat(80)
   const badRe = [/\bfuck\b/i, /\bshit\b/i, /\bnigger\b/i, /\bporn\b/i, /\bxxx\b/i];
