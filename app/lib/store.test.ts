@@ -649,4 +649,34 @@ describe("store — createPoll validation", () => {
       expect(ok.poll.options[1].image_url).toBe(goodB.image_url);
     }
   });
+
+  it("creates 2-option poll with 8-char nanoid id and persists creator_cookie (mock mode)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const creator_cookie = "test-creator-cookie-xyz-8char";
+    const res = await createPoll({
+      title: "Pick one",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/nanoid-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/nanoid-b/600/600" },
+      ],
+      creator_cookie,
+      ip: "14.14.14.14",
+    });
+    expect("poll" in res, `expected poll, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    const p = res.poll;
+    expect(p.options).toHaveLength(2);
+    // poll id is 8-char nanoid: customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8)
+    expect(p.id).toMatch(/^[0-9a-z]{8}$/);
+    expect(p.id).toHaveLength(8);
+    expect(p.creator_cookie).toBe(creator_cookie);
+    // persisted via getPoll
+    const fresh = await getPoll(p.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.id).toBe(p.id);
+    expect(fresh!.creator_cookie).toBe(creator_cookie);
+    expect(fresh!.options).toHaveLength(2);
+    for (const o of fresh!.options) expect(o.poll_id).toBe(p.id);
+  });
 });
