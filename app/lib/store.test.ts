@@ -787,4 +787,59 @@ describe("store — createPoll validation", () => {
     expect(refetch1!.context).toBe("Help me pick for dinner — vote!");
     expect(refetch1!.category).toBe("Food & Drink");
   });
+
+  it("minimal poll with only title+2 options no context/category — category null and context null not empty string (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    // minimal poll: only required fields — title + 2 options, no context/category keys at all
+    const res = await createPoll({
+      title: "Which one? — minimal null check",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/nullcheck-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/nullcheck-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "15.15.15.19",
+    });
+    expect("poll" in res, `expected poll for minimal no-context/category, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    const p = res.poll;
+    expect(p.options).toHaveLength(2);
+    expect(p.title).toBe("Which one? — minimal null check");
+    // category and context must be null — explicitly not empty string (store trims or nulls: input.context?.trim() || null)
+    expect(p.context).toBeNull();
+    expect(p.category).toBeNull();
+    expect(p.context).not.toBe("");
+    expect(p.category).not.toBe("");
+    expect(typeof p.context).not.toBe("string");
+    expect(typeof p.category).not.toBe("string");
+    expect(p.status).toBe("active");
+    // persisted via getPoll — still null, not ""
+    const fresh = await getPoll(p.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.context).toBeNull();
+    expect(fresh!.category).toBeNull();
+    expect(fresh!.context).not.toBe("");
+    expect(fresh!.category).not.toBe("");
+    // empty string inputs also collapse to null (defense-in-depth — same store path: "".trim() || null)
+    const res2 = await createPoll({
+      title: "Empty string collapses to null",
+      context: "",
+      category: "",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/nullcheck2-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/nullcheck2-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "15.15.15.20",
+    });
+    expect("poll" in res2, `expected poll for empty string context/category, got ${JSON.stringify(res2)}`).toBe(true);
+    if (!("poll" in res2)) return;
+    expect(res2.poll.context).toBeNull();
+    expect(res2.poll.category).toBeNull();
+    expect(res2.poll.context).not.toBe("");
+    const fresh2 = await getPoll(res2.poll.id);
+    expect(fresh2!.context).toBeNull();
+    expect(fresh2!.category).toBeNull();
+  });
 });
