@@ -733,4 +733,58 @@ describe("store — createPoll validation", () => {
     expect(res2.poll.category).toBeNull();
     expect(res2.poll.creator_cookie).toBeNull();
   });
+
+  it("persists category and context via getPoll — trimmed, round-trip (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const res = await createPoll({
+      title: "Category/context persistence",
+      context: "  Help me pick for dinner — vote!  ",
+      category: "  Food & Drink  ",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/catctx-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/catctx-b/600/600" },
+      ],
+      creator_cookie: "catctx-cid",
+      ip: "15.15.15.17",
+    });
+    expect("poll" in res, `expected poll with category/context, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    // store trims context/category (store.ts: input.context?.trim() || null)
+    expect(res.poll.context).toBe("Help me pick for dinner — vote!");
+    expect(res.poll.category).toBe("Food & Drink");
+    expect(res.poll.title).toBe("Category/context persistence");
+    expect(res.poll.creator_cookie).toBe("catctx-cid");
+    // persisted via getPoll — same trimmed values
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.context).toBe("Help me pick for dinner — vote!");
+    expect(fresh!.category).toBe("Food & Drink");
+    expect(fresh!.title).toBe(res.poll.title);
+    expect(fresh!.creator_cookie).toBe("catctx-cid");
+    expect(fresh!.options).toHaveLength(2);
+    // second poll on different IP — distinct category/context, no cross-pollution
+    const res2 = await createPoll({
+      title: "Second catctx",
+      context: "Need winner before I publish",
+      category: "Design",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/catctx2-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/catctx2-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "15.15.15.18",
+    });
+    expect("poll" in res2, `expected second poll, got ${JSON.stringify(res2)}`).toBe(true);
+    if (!("poll" in res2)) return;
+    expect(res2.poll.context).toBe("Need winner before I publish");
+    expect(res2.poll.category).toBe("Design");
+    const fresh2 = await getPoll(res2.poll.id);
+    expect(fresh2!.context).toBe("Need winner before I publish");
+    expect(fresh2!.category).toBe("Design");
+    // first poll still unchanged after second create
+    const refetch1 = await getPoll(res.poll.id);
+    expect(refetch1!.context).toBe("Help me pick for dinner — vote!");
+    expect(refetch1!.category).toBe("Food & Drink");
+  });
 });
