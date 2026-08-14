@@ -57,7 +57,7 @@ describe("dedup helpers", () => {
     expect(new Set(burst).size).toBe(1);
   });
 
-  it("clientIpFromHeaders prefers x-forwarded-for first entry", () => {
+  it("clientIpFromHeaders prefers x-vercel-forwarded-for > x-real-ip > x-forwarded-for", () => {
     const h1 = new Headers({ "x-forwarded-for": "1.1.1.1, 2.2.2.2, 3.3.3.3" });
     expect(clientIpFromHeaders(h1)).toBe("1.1.1.1");
 
@@ -67,9 +67,13 @@ describe("dedup helpers", () => {
     const h3 = new Headers({ "x-real-ip": "6.6.6.6" });
     expect(clientIpFromHeaders(h3)).toBe("6.6.6.6");
 
-    // x-forwarded-for takes precedence over x-real-ip
+    // x-real-ip takes precedence over x-forwarded-for (RT-SEC-04: trust x-vercel first, then x-real, then xff fallback)
     const h4 = new Headers({ "x-forwarded-for": "7.7.7.7", "x-real-ip": "8.8.8.8" });
-    expect(clientIpFromHeaders(h4)).toBe("7.7.7.7");
+    expect(clientIpFromHeaders(h4)).toBe("8.8.8.8");
+
+    // x-vercel-forwarded-for is most trusted (Vercel-verified)
+    const h4b = new Headers({ "x-vercel-forwarded-for": "10.10.10.10", "x-forwarded-for": "7.7.7.7", "x-real-ip": "8.8.8.8" });
+    expect(clientIpFromHeaders(h4b)).toBe("10.10.10.10");
 
     const h5 = new Headers({});
     expect(clientIpFromHeaders(h5)).toBe("0.0.0.0");

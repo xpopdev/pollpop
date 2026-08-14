@@ -32,5 +32,7 @@ __pycache__/
 .venv/
 dist/
 build/
+.next/
+app/.next/
 *.tsbuildinfo
 app/tsconfig.tsbuildinfo
