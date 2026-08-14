@@ -15,3 +15,5 @@ OPPORTUNITY: Gap is personalized before/after reveal + weekly challenge remix ch
 DISTRIBUTION: Template loop — creator publishes template → viewer taps "Use template" → posts → reaches their followers. Output-is-the-ad via TikTok interest graph (VERIFIED).
 
 Confidence: INFERRED (fetch blocked). Re-verify pricing/capabilities live before cost model.
+
+Re-verification 2026-08-14: Retried WebSearch "CapCut Pro pricing 2026" → 400 max_uses error; WebFetch capcut.com → 451, capcut.com/pricing → 404 — all failed (see research_log.md). No VERIFIED delta; Pro ~$10/mo and 200M MAU remain INFERRED/ESTIMATE.

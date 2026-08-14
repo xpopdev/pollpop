@@ -24,3 +24,5 @@ Date: 2026-08-14 | Confidence per §29.
 ### Recommendation for MVP
 Supabase (DB + Realtime + Auth + Storage) + OG image rendering + soft dedup + NSFW filter. Cheapest/fastest to validate of all three candidates (1-2 week MVP). Validate voters_per_poll and creator_conversion_rate before adding discovery/leaderboard.
 
+Re-verification 2026-08-14: Retried WebSearch "Supabase pricing 2026 database realtime storage" → 400 max_uses error; WebFetch supabase.com/pricing + supabase.com → haiku model error — all failed (see research_log.md). No VERIFIED pricing delta; free-tier limits and paid $/mo remain INFERRED/ESTIMATE. Do not base gross-margin model on these numbers until live check succeeds.
+

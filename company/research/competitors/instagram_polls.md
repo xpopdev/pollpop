@@ -15,3 +15,5 @@ OPPORTUNITY: Neither converts voters → creators. PollPop's CTA ("Create your o
 DISTRIBUTION: IG follower-graph (vote but never leave IG, no acquisition) (VERIFIED); Strawpoll link-forward (broadcast, not viral — no creation pull) (INFERRED).
 
 Confidence: INFERRED (fetches blocked). IG 24h/binary mechanics VERIFIED; Strawpoll details need live check.
+
+Re-verification 2026-08-14: Retried WebSearch "Strawpoll Poll-Maker pricing" + "Instagram Stories poll 2026 update" → both 400 max_uses error; WebFetch strawpoll.com + help.instagram.com → haiku model error — all failed (see research_log.md). No VERIFIED delta; Strawpoll/Poll-Maker gaps and any IG 2026 feature changes remain INFERRED/UNKNOWN.

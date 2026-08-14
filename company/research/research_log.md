@@ -54,4 +54,35 @@ Found: 5 competitor files written to competitors/ prioritizing ClipForge threats
 Cross-checked against: each other (capcut vs runway vs sora triangulated on AI video cost/latency), Quizlet store-review sentiment cross-checked with Anki OSS FSRS benchmarks, poll infra vs Strawpoll gaps. No VERIFIED live fetch succeeded — re-verify pricing/specs live before scoring finalization and any build cost model.
 Relevance: Completes competitive + technical research for top 3 candidates (run-autonomous Phase A step before score-ideas → contrarian-attack → ceo-report gate).
 
+### 2026-08-14 — Re-verification attempt: live pricing/capabilities for INFERRED competitors (Phase 1 follow-up)
+
+Searched: Re-try of all WebSearch/WebFetch that were INFERRED in Phase 1 (verified failures above). Task: 4 targets — (1) CapCut pricing/template/AI, (2) Strawpoll/Poll-Maker pricing, (3) Instagram Stories poll features, (4) Supabase MVP stack pricing (DB+Realtime+Storage). Attempted 4 WebSearch queries + 7 WebFetch URLs.
+
+**WebSearch (4 queries) — ALL FAILED with identical error:**
+- `CapCut Pro pricing 2026` → 400 {"error":{"message":"web_search field `max_uses` is not supported","type":"invalid_request_error"},"type":"error"}
+- `Supabase pricing 2026 database realtime storage` → same 400 max_uses error
+- `Strawpoll Poll-Maker pricing features 2026` → same 400 max_uses error
+- `Instagram Stories poll sticker binary multiple choice 2026 update` → same 400 max_uses error
+Diagnosis: Systematic API-level failure (max_uses field not supported), identical to Phase 1 Round 1 failure mode (400 max_uses). Not query-specific; tool is down at provider level. No WebSearch succeeded.
+
+**WebFetch (7 URLs) — ALL FAILED:**
+- https://www.capcut.com/ (prompt: pricing/template/AI, free vs Pro) → 451 (Unavailable For Legal Reasons) — matches Phase 1 pattern (was 403 on 2026-08-14 earlier, now 451; both are fetch-blocked)
+- https://www.capcut.com/pricing → 404
+- https://supabase.com/pricing (prompt: DB+Realtime+Storage pricing) → model error: claude-haiku-4-5-20251001 may not exist / no access (same model error as Phase 1 for 5/8 fetches)
+- https://supabase.com/ → same model error (haiku-4-5)
+- https://strawpoll.com/ (prompt: pricing/features) → same model error (haiku-4-5)
+- https://www.poll-maker.com/ (prompt: Poll-Maker pricing/features) → same model error (haiku-4-5)
+- https://help.instagram.com/238081258412734 (prompt: Stories poll sticker features) → same model error (haiku-4-5)
+Cross-attempt fallback: curl -I checks were permission-denied by settings.json deny rules (Bash curl not allowed), so no alternative HTTP verification possible in this environment.
+
+Found: **Zero live data recovered.** No pricing, feature, or template-system data could be VERIFIED. All competitor pricing/capabilities remain exactly as labeled in Phase 1 — INFERRED/ESTIMATE from training data to 2026-01-04, per §29 — with no delta to report. Specific status per target:
+- CapCut: capcut.md remains INFERRED — Pro ~$10/mo, free core, template flywheel 200M MAU ESTIMATE, zero per-gen cost. No VERIFIED delta. Re-verification attempted 2026-08-14, fetch blocked (451/403).
+- Strawpoll/Poll-Maker: instagram_polls.md remains INFERRED — free, ugly previews, no visual options/CTA/discovery. No VERIFIED delta. Fetch blocked (model error).
+- Instagram polls: instagram_polls.md remains INFERRED/VERIFIED split as before — 24h/binary/platform-locked mechanics VERIFIED from training, but any 2026 feature changes UNKNOWN (fetch blocked, cannot confirm if IG added multi-option or persistent polls).
+- Supabase: technologies/poll_infra.md remains INFERRED — assumes Supabase free tier covers DB+Realtime+Storage for MVP with pennies infra cost. No live pricing verified (supabase.com/pricing fetch blocked). MVP cost model must stay ESTIMATE until pricing is VERIFIED; do not commit to Supabase paid tier without live check.
+
+Cross-checked against: Phase 1 failure modes — identical errors (400 max_uses on search, 403/451 + haiku model error on fetch), confirming systematic tool outage, not transient. No second source available.
+
+Relevance: Per §7, negative results matter — this entry prevents re-running same searches and documents that PollPop's competitive pricing wedge (Strawpoll free/ugly vs IG locked, Supabase $0 MVP) is still HYPOTHESIS/INFERRED, not VERIFIED. Any build cost model using these numbers must label them ESTIMATE. Re-verify again before MVP scaffolding or any pricing-dependent decision; if tools recover, prioritize Supabase pricing (affects gross margin) and Instagram poll changes (affects defensibility).
+
 ---
