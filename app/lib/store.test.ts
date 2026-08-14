@@ -1007,4 +1007,46 @@ describe("store — createPoll validation", () => {
     expect(ok.total).toBe(1);
     expect(ok.counts[r1.poll.options[0].id]).toBe(1);
   });
+
+  it("valid https image_url (picsum) is accepted and persisted verbatim via getPoll — picsum URL persistence (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    // valid https picsum URLs — the happy path for option images (non-data URL branch, new URL check only)
+    const picsumA = "https://picsum.photos/seed/pollpop-persist-a/600/600";
+    const picsumB = "https://picsum.photos/seed/pollpop-persist-b/600/600";
+    const res = await createPoll({
+      title: "Valid https picsum persistence",
+      options: [
+        { label: "A", image_url: picsumA },
+        { label: "B", image_url: picsumB },
+      ],
+      creator_cookie: null,
+      ip: "19.19.19.1",
+    });
+    expect("poll" in res, `expected poll for valid https picsum URLs, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    // immediate response: image_urls stored verbatim (trimmed), not rewritten
+    expect(res.poll.options).toHaveLength(2);
+    expect(res.poll.options[0].image_url).toBe(picsumA);
+    expect(res.poll.options[1].image_url).toBe(picsumB);
+    expect(res.poll.options[0].label).toBe("A");
+    expect(res.poll.options[1].label).toBe("B");
+    expect(res.poll.options[0].position).toBe(0);
+    expect(res.poll.options[1].position).toBe(1);
+    expect(res.poll.options[0].votes).toBe(0);
+    expect(res.poll.options[1].votes).toBe(0);
+    // persisted via getPoll — same verbatim URLs, order and polling intact
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.id).toBe(res.poll.id);
+    expect(fresh!.options).toHaveLength(2);
+    expect(fresh!.options[0].image_url).toBe(picsumA);
+    expect(fresh!.options[1].image_url).toBe(picsumB);
+    expect(fresh!.options.map((o) => o.position)).toEqual([0, 1]);
+    expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(fresh!.options.map((o) => o.label)).toEqual(["A", "B"]);
+    // distinct option ids, correct poll_id linkage — proves createPoll mapped correctly
+    expect(fresh!.options[0].id).not.toBe(fresh!.options[1].id);
+    for (const o of fresh!.options) expect(o.poll_id).toBe(fresh!.id);
+  });
 });
