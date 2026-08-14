@@ -72,38 +72,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   <text x="1160" y="610" text-anchor="end" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="rgba(255,255,255,.66)">OG • 1200×630 • poll ${escapeXml(params.id)}</text>
 </svg>`;
 
-    // Try to convert SVG -> PNG via sharp if available (Node runtime).
-    // On edge runtime or if sharp not installed, this will throw and we fall back to SVG.
-    try {
-      // dynamic import — works when sharp is installed and runtime is Node; fails gracefully on edge
-      const mod: unknown = await import("sharp" as string).catch(() => null);
-      const sharpFn = (mod as { default?: (input: Buffer) => { png: () => { toBuffer: () => Promise<Buffer> } } } | null)?.default
-        || (mod as ((input: Buffer) => { png: () => { toBuffer: () => Promise<Buffer> } }) | null);
-      if (sharpFn) {
-        const fn = typeof sharpFn === "function" ? sharpFn : (sharpFn as { default: typeof sharpFn }).default;
-        // Support both `sharp(buffer)` and `sharp.default(buffer)` shapes
-        const sharpInstance = (typeof fn === "function" ? fn(Buffer.from(svg)) : (sharpFn as unknown as (b: Buffer) => { png: () => { toBuffer: () => Promise<Buffer> } })(Buffer.from(svg)));
-        if (sharpInstance && typeof (sharpInstance as unknown as { png: () => unknown }).png === "function") {
-          const pngBuffer: Buffer = await (sharpInstance as unknown as { png: () => { toBuffer: () => Promise<Buffer> } }).png().toBuffer();
-          return new Response(pngBuffer as unknown as BodyInit, {
-            headers: {
-              "content-type": "image/png",
-              "cache-control": "public, max-age=3600",
-              "x-pollpop-og": "png-sharp",
-            },
-          });
-        }
-      }
-    } catch {
-      // sharp not available or conversion failed — fall through to SVG
-    }
-
-    // SVG fallback — still valid OG image, never 500
+    // SVG only for edge runtime — PNG via sharp requires Node runtime and
+    // triggers `node:crypto` webpack errors on edge. PNG TODO: switch this
+    // route to `runtime = "nodejs"` + vercel/og or sharp, or pre-render PNG to
+    // Supabase Storage at create time. Until then edge SVG never 500s and
+    // previews in browsers; WhatsApp/Discord unfurl may prefer PNG but will
+    // still show fallback link.
     return new Response(svg, {
       headers: {
         "content-type": "image/svg+xml; charset=utf-8",
         "cache-control": "public, max-age=3600",
-        "x-pollpop-og": "svg-edge-fallback",
+        "x-pollpop-og": "svg-edge",
       },
     });
   } catch {
