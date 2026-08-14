@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPoll } from "@/lib/store";
-import { getCookieFromHeader, clientIpFromHeaders, hashIpSync } from "@/lib/dedup";
+import { getCookieFromHeader, clientIpFromHeaders, hashIpSync, COOKIE_NAME } from "@/lib/dedup";
 import { isSupabaseConfigured, supaService } from "@/lib/supabase";
+import { randomUUID } from "crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +21,18 @@ export async function POST(req: NextRequest) {
     }) : [];
     const ref = body.ref ? String(body.ref) : null;
 
-    // cookie dedup + ip
+    // cookie dedup + ip — prefer HttpOnly cookie header, fallback to x-pollpop-cid only when cookie missing, then rotate
     const cookieHeader = req.headers.get("cookie");
     const cidHeader = req.headers.get("x-pollpop-cid");
-    const creator_cookie = getCookieFromHeader(cookieHeader) || (cidHeader ? String(cidHeader) : null) || null;
+    let creator_cookie = getCookieFromHeader(cookieHeader) || null;
+    let setCookie: string | null = null;
+    if (!creator_cookie && cidHeader) {
+      creator_cookie = String(cidHeader);
+      setCookie = `${COOKIE_NAME}=${encodeURIComponent(creator_cookie)}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=31536000`;
+    } else if (!creator_cookie) {
+      creator_cookie = randomUUID();
+      setCookie = `${COOKIE_NAME}=${encodeURIComponent(creator_cookie)}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=31536000`;
+    }
     const ip = clientIpFromHeaders(req.headers);
 
     // RT-BUG-18: accept data URLs up to 6 MB, upload to Supabase Storage when configured.
@@ -114,6 +123,7 @@ export async function POST(req: NextRequest) {
       if ("retry_after" in res && res.retry_after) body.retry_after = res.retry_after;
       const headers: Record<string, string> = {};
       if ("retry_after" in res && res.retry_after) headers["retry-after"] = String(res.retry_after);
+      if (setCookie) headers["Set-Cookie"] = setCookie;
       return NextResponse.json(body, { status: res.status, headers: Object.keys(headers).length ? headers : undefined });
     }
     const poll = res.poll;
@@ -124,7 +134,9 @@ export async function POST(req: NextRequest) {
     await recordEvent({ name: "poll_create", poll_id: poll.id, cookie: creator_cookie, ref, meta: null });
 
     const origin = req.nextUrl.origin;
-    return NextResponse.json({ id: poll.id, url: `${origin}/p/${poll.id}`, poll }, { status: 201 });
+    const headers: Record<string, string> = {};
+    if (setCookie) headers["Set-Cookie"] = setCookie;
+    return NextResponse.json({ id: poll.id, url: `${origin}/p/${poll.id}`, poll }, { status: 201, headers: Object.keys(headers).length ? headers : undefined });
   } catch (e: unknown) {
     console.error(e);
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });

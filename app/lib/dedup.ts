@@ -57,9 +57,5 @@ export function hashIpSync(ip: string, salt: string): string {
 }
 
 export function clientIpFromHeaders(h: Headers): string {
-  const xff = h.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0].trim();
-  const real = h.get("x-real-ip");
-  if (real) return real;
-  return "0.0.0.0";
+  return h.get("x-vercel-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip")?.trim() || h.get("x-forwarded-for")?.split(",")[0]?.trim() || "0.0.0.0";
 }

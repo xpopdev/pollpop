@@ -13,12 +13,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     let voter_cookie = getCookieFromHeader(req.headers.get("cookie"));
     const cidHeader = req.headers.get("x-pollpop-cid");
-    if (!voter_cookie && cidHeader) voter_cookie = String(cidHeader);
-    // if still missing, create one and set cookie
+    // prefer HttpOnly cookie header; x-pollpop-cid only fallback when cookie missing — then rotate to HttpOnly
     let setCookie: string | null = null;
-    if (!voter_cookie) {
+    if (!voter_cookie && cidHeader) {
+      voter_cookie = String(cidHeader);
+      setCookie = `${COOKIE_NAME}=${encodeURIComponent(voter_cookie)}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=31536000`;
+    } else if (!voter_cookie) {
       voter_cookie = randomUUID();
-      setCookie = `${COOKIE_NAME}=${encodeURIComponent(voter_cookie)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+      setCookie = `${COOKIE_NAME}=${encodeURIComponent(voter_cookie)}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=31536000`;
     }
     const ip = clientIpFromHeaders(req.headers);
 
@@ -29,14 +31,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       if ("retry_after" in res && res.retry_after) body.retry_after = res.retry_after;
       const headers: Record<string, string> = {};
       if ("retry_after" in res && res.retry_after) headers["retry-after"] = String(res.retry_after);
-      if (setCookie) headers["set-cookie"] = setCookie;
+      if (setCookie) headers["Set-Cookie"] = setCookie;
       return NextResponse.json(body, { status: res.status, headers });
     }
 
     await recordEvent({ name: "vote", poll_id: params.id, cookie: voter_cookie, ref: null, meta: { option_id } });
 
     const headers: Record<string,string> = {};
-    if (setCookie) headers["set-cookie"] = setCookie;
+    if (setCookie) headers["Set-Cookie"] = setCookie;
 
     return NextResponse.json({ counts: res.counts, total: res.total }, { headers });
   } catch (e: unknown) {
