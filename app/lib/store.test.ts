@@ -583,4 +583,70 @@ describe("store — createPoll validation", () => {
       expect(ok.poll.options[1].image_url).toBe(goodB.image_url);
     }
   });
+
+  it("rejects invalid image_url non-URL — 'not-a-url' → 400 Invalid image URL (mock mode)", async () => {
+    resetMock();
+    const { createPoll } = await import("./store");
+    const goodB = { label: "B", image_url: "https://picsum.photos/seed/invalid-url-b/600/600" };
+    const goodA = { label: "A", image_url: "https://picsum.photos/seed/invalid-url-a/600/600" };
+
+    // first option is bare string "not-a-url" (no scheme, not a URL) → 400
+    const r1 = await createPoll({
+      title: "invalid url first opt",
+      options: [
+        { label: "A", image_url: "not-a-url" },
+        goodB,
+      ],
+      creator_cookie: null,
+      ip: "13.13.13.1",
+    });
+    expect(r1).toMatchObject({ status: 400 });
+    if ("error" in (r1 as { error: string; status: number })) {
+      expect((r1 as { error: string }).error).toMatch(/Invalid image URL/i);
+    }
+
+    // second option invalid — also 400
+    const r2 = await createPoll({
+      title: "invalid url second opt",
+      options: [
+        goodA,
+        { label: "B", image_url: "not-a-url" },
+      ],
+      creator_cookie: null,
+      ip: "13.13.13.2",
+    });
+    expect(r2).toMatchObject({ status: 400 });
+    if ("error" in (r2 as { error: string; status: number })) {
+      expect((r2 as { error: string }).error).toMatch(/Invalid image URL/i);
+    }
+
+    // other non-URL shapes — also 400 (no scheme / not parseable by new URL)
+    const r3 = await createPoll({
+      title: "invalid url shape",
+      options: [
+        goodA,
+        { label: "B", image_url: "://missing-scheme" },
+      ],
+      creator_cookie: null,
+      ip: "13.13.13.3",
+    });
+    expect(r3).toMatchObject({ status: 400 });
+    if ("error" in (r3 as { error: string; status: number })) {
+      expect((r3 as { error: string }).error).toMatch(/Invalid image URL/i);
+    }
+
+    // valid https URLs still succeed (control — proves validation not over-broad)
+    const ok = await createPoll({
+      title: "invalid url guard ok",
+      options: [goodA, goodB],
+      creator_cookie: null,
+      ip: "13.13.13.4",
+    });
+    expect("poll" in ok, `expected poll after invalid-URL rejects, got ${JSON.stringify(ok)}`).toBe(true);
+    if ("poll" in ok) {
+      expect(ok.poll.options).toHaveLength(2);
+      expect(ok.poll.options[0].image_url).toBe(goodA.image_url);
+      expect(ok.poll.options[1].image_url).toBe(goodB.image_url);
+    }
+  });
 });
