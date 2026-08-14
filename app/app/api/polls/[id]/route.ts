@@ -11,6 +11,6 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const og = `/api/polls/${encodeURIComponent(poll.id)}/og`;
 
   return NextResponse.json({ poll, og }, {
-    headers: { "cache-control": "public, max-age=5, stale-while-revalidate=30" },
+    headers: { "cache-control": "public, max-age=0, must-revalidate" },
   });
 }

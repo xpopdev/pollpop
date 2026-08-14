@@ -125,7 +125,13 @@ export default function PollClient({ id }: { id: string }) {
         body: JSON.stringify({ option_id: optionId }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Vote failed");
+      if (!res.ok) {
+        const err = new Error(data.error || "Vote failed") as Error & { code?: string; status?: number; retry_after?: number };
+        (err as unknown as Record<string, unknown>).code = data.code;
+        (err as unknown as Record<string, unknown>).status = data.status ?? res.status;
+        (err as unknown as Record<string, unknown>).retry_after = data.retry_after;
+        throw err;
+      }
       // reconcile with server counts
       if (data.counts) {
         setPoll(p => p ? ({ ...p, options: p.options.map(o => ({ ...o, votes: data.counts[o.id] ?? o.votes })) }) : p);
@@ -145,7 +151,13 @@ export default function PollClient({ id }: { id: string }) {
         if (prevVote) localStorage.setItem(`pollpop_vote_${id}`, prevVote);
         else localStorage.removeItem(`pollpop_vote_${id}`);
       } catch {}
-      setToast((e as Error).message || "Vote failed");
+      const errObj = e as Error & { code?: string; status?: number };
+      // RT-BUG-22: structured 429 check — use code/status not string includes
+      if (errObj.code === "RATE_LIMITED" || errObj.status === 429) {
+        setToast(errObj.message || "Too many votes — try again tomorrow");
+      } else {
+        setToast(errObj.message || "Vote failed");
+      }
       setTimeout(()=>setToast(""), 2200);
     } finally {
       votedRef.current = false;

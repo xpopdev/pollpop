@@ -36,7 +36,12 @@ export async function POST(req: NextRequest) {
 
     const res = await createPoll({ title, context, category, options, creator_cookie, ip });
     if ("error" in res) {
-      return NextResponse.json({ error: res.error }, { status: res.status });
+      const body: Record<string, unknown> = { error: res.error, status: res.status };
+      if ("code" in res && res.code) body.code = res.code;
+      if ("retry_after" in res && res.retry_after) body.retry_after = res.retry_after;
+      const headers: Record<string, string> = {};
+      if ("retry_after" in res && res.retry_after) headers["retry-after"] = String(res.retry_after);
+      return NextResponse.json(body, { status: res.status, headers: Object.keys(headers).length ? headers : undefined });
     }
     const poll = res.poll;
 

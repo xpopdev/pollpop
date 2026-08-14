@@ -166,7 +166,7 @@ export async function createPoll(input: {
   options: { label: string; image_url: string }[];
   creator_cookie: string | null;
   ip: string;
-}): Promise<{ poll: Poll } | { error: string; status: number }> {
+}): Promise<{ poll: Poll } | { error: string; status: number; code: string; retry_after: number }> {
   const title = input.title.trim();
   if (!title || title.length > 80) return { error: "Title required (≤80 chars)", status: 400 };
   if (input.options.length < 2 || input.options.length > 4) return { error: "2–4 options required", status: 400 };
@@ -185,7 +185,7 @@ export async function createPoll(input: {
     const key = `create:${input.ip}`;
     const now = Date.now();
     const arr = (db.rate.get(key) || []).filter((t) => now - t < 3600_000);
-    if (arr.length >= 5) return { error: "Too many polls — try again later", status: 429 };
+    if (arr.length >= 5) return { error: "Too many polls — try again later", status: 429, code: "RATE_LIMITED", retry_after: 3600 };
     arr.push(now);
     db.rate.set(key, arr);
 
@@ -223,7 +223,7 @@ export async function createPoll(input: {
     const key = `create:${input.ip}`;
     const now = Date.now();
     const arr = (supaCreateRate.get(key) || []).filter((t) => now - t < 3600_000);
-    if (arr.length >= 5) return { error: "Too many polls — try again later", status: 429 };
+    if (arr.length >= 5) return { error: "Too many polls — try again later", status: 429, code: "RATE_LIMITED", retry_after: 3600 };
     arr.push(now);
     supaCreateRate.set(key, arr);
   }
@@ -266,7 +266,7 @@ export async function voteOnPoll(input: {
   option_id: string;
   voter_cookie: string;
   ip: string;
-}): Promise<{ counts: Record<string, number>; total: number } | { error: string; status: number }> {
+}): Promise<{ counts: Record<string, number>; total: number } | { error: string; status: number; code: string; retry_after: number }> {
   const poll = await getPoll(input.poll_id);
   if (!poll) return { error: "Poll not found", status: 404 };
   if (!poll.options.find((o) => o.id === input.option_id)) return { error: "Option not found", status: 400 };
@@ -295,7 +295,7 @@ export async function voteOnPoll(input: {
       (v) => v.poll_id === input.poll_id && v.voter_cookie === input.voter_cookie
     );
     const isNew = existingIdx === -1 && existingByCookie === -1;
-    if (isNew && arr.length >= 10) return { error: "Too many votes — try again tomorrow", status: 429 };
+    if (isNew && arr.length >= 10) return { error: "Too many votes — try again tomorrow", status: 429, code: "RATE_LIMITED", retry_after: 86400 };
 
     let targetIdx = existingIdx !== -1 ? existingIdx : existingByCookie;
     if (targetIdx !== -1) {
@@ -378,7 +378,7 @@ export async function voteOnPoll(input: {
   const { data: existing } = await supa.from("votes").select("id, option_id").eq("poll_id", input.poll_id).eq("voter_cookie", input.voter_cookie).eq("ip_hash", ip_hash).maybeSingle();
   // RT-BUG-09: change-votes don't count toward rate (intended) — only new votes increment quota
   const isNew = !existing;
-  if (isNew && (count || 0) >= 10) return { error: "Too many votes — try again tomorrow", status: 429 };
+  if (isNew && (count || 0) >= 10) return { error: "Too many votes — try again tomorrow", status: 429, code: "RATE_LIMITED", retry_after: 86400 };
 
   // helper: atomic increment via RPC, fallback to single UPDATE if RPC not yet migrated
   // Primary: RPC increment_vote does `update poll_options set votes = votes + 1 where id = p_option_id`

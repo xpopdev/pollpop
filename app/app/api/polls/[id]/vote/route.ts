@@ -24,7 +24,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const res = await voteOnPoll({ poll_id: params.id, option_id, voter_cookie, ip });
     if ("error" in res) {
-      return NextResponse.json({ error: res.error }, { status: res.status, headers: setCookie ? { "set-cookie": setCookie } : undefined });
+      const body: Record<string, unknown> = { error: res.error, status: res.status };
+      if ("code" in res && res.code) body.code = res.code;
+      if ("retry_after" in res && res.retry_after) body.retry_after = res.retry_after;
+      const headers: Record<string, string> = {};
+      if ("retry_after" in res && res.retry_after) headers["retry-after"] = String(res.retry_after);
+      if (setCookie) headers["set-cookie"] = setCookie;
+      return NextResponse.json(body, { status: res.status, headers });
     }
 
     await recordEvent({ name: "vote", poll_id: params.id, cookie: voter_cookie, ref: null, meta: { option_id } });
