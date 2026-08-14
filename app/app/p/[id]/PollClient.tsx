@@ -62,15 +62,19 @@ export default function PollClient({ id }: { id: string }) {
   }, [showResults, fetchPoll]);
 
   // Supabase Realtime if configured (client subscribes to poll_options changes)
+  // Requires `alter publication supabase_realtime add table poll_options;` (see app/DEPLOY.md §1).
+  // If Realtime is disabled or unavailable, the 5s polling fallback above keeps results live.
   useEffect(() => {
     if (!showResults || !poll) return;
-    let channel: unknown = null;
+    let channel: any = null;
+    let supa: any = null;
     (async () => {
       try {
         const { createClient } = await import("@/lib/supabase");
         const client = createClient();
         if (!client) return;
-        // subscribe to poll_options changes for this poll
+        supa = client;
+        // Realtime publication must include poll_options — see DEPLOY.md
         const ch = client.channel(`poll:${id}`)
           .on("postgres_changes", { event:"*", schema:"public", table:"poll_options", filter:`poll_id=eq.${id}` }, () => fetchPoll())
           .subscribe();
@@ -79,8 +83,7 @@ export default function PollClient({ id }: { id: string }) {
     })();
     return () => {
       try {
-        const c = channel as { unsubscribe?: ()=>void };
-        c?.unsubscribe?.();
+        if (channel && supa) supa.removeChannel(channel);
       } catch {}
     };
   }, [showResults, poll, id, fetchPoll]);

@@ -1,10 +1,20 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { beacon } from "@/lib/analytics";
 
 export function CTACard({ pollId, compact }: { pollId: string; compact?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const fired = useRef(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    try { if (sessionStorage.getItem("pollpop_cta_dismissed") === "1") setDismissed(true); } catch {}
+  }, []);
+
+  const onDismiss = () => {
+    try { sessionStorage.setItem("pollpop_cta_dismissed", "1"); } catch {}
+    setDismissed(true);
+  };
 
   useEffect(() => {
     if (fired.current) return;
@@ -27,9 +37,12 @@ export function CTACard({ pollId, compact }: { pollId: string; compact?: boolean
     window.location.href = `/?ref=poll_${encodeURIComponent(pollId)}`;
   };
 
+  if (dismissed) return null;
+
   if (compact) {
     return (
       <div ref={ref} className="cta-card" style={{ padding: "14px" }}>
+        <button className="cta-dismiss" aria-label="Dismiss" onClick={onDismiss}>×</button>
         <div className="cta-badge">Viral loop · 15s</div>
         <h3 style={{ fontSize: 16 }}>Create your own — 15s</h3>
         <div className="cta-actions" style={{ marginTop: 10 }}>
@@ -41,6 +54,7 @@ export function CTACard({ pollId, compact }: { pollId: string; compact?: boolean
 
   return (
     <div ref={ref} className="cta-card">
+      <button className="cta-dismiss" aria-label="Dismiss" onClick={onDismiss}>×</button>
       <div className="cta-badge">✦ Turn any “which one?” into a poll</div>
       <h3>Create your own — 15s</h3>
       <p>Got a fit, menu, logo, or Airbnb to settle? Make a visual poll and share one link. No signup.</p>

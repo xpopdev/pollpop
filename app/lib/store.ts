@@ -14,6 +14,35 @@ const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 // Key `create:${ip}` with 5 per hour window (same as mock branch lines 143-148)
 const supaCreateRate = new Map<string, number[]>();
 
+// RT-BUG-19: cap meta to 2KB serialized — same rule as app/api/events/route.ts
+function capMeta(meta: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!meta || typeof meta !== "object") return meta;
+  try {
+    if (JSON.stringify(meta).length <= 2048) return meta;
+    const filtered: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(meta)) {
+      if (k.length > 64) continue;
+      const vs = JSON.stringify(v);
+      if (vs == null) continue;
+      if (vs.length > 512) continue;
+      if (String(v).length > 512) continue;
+      filtered[k] = v;
+    }
+    if (JSON.stringify(filtered).length <= 2048) return filtered;
+    // still >2KB (many keys) — drop largest entries until it fits
+    const entries = Object.entries(filtered).sort((a, b) => JSON.stringify(b[1]).length - JSON.stringify(a[1]).length);
+    const trimmed: Record<string, unknown> = { ...filtered };
+    for (const [k] of entries) {
+      delete trimmed[k];
+      if (JSON.stringify(trimmed).length <= 2048) break;
+    }
+    if (JSON.stringify(trimmed).length > 2048) return {};
+    return trimmed;
+  } catch {
+    return null;
+  }
+}
+
 // RT-BUG-06: server dedup note — production should add Postgres unique constraint:
 //   create unique index events_dedup_hour on events (cookie, name, poll_id, date_trunc('hour', created_at))
 //   where name in ('poll_view','cta_view');
@@ -447,12 +476,15 @@ export async function voteOnPoll(input: {
 }
 
 export async function recordEvent(row: { name: EventName; poll_id: string | null; cookie: string | null; ref: string | null; meta: Record<string, unknown> | null }) {
+  // RT-BUG-19: cap meta before any insert (defense-in-depth; route.ts already caps, but direct callers also hit here)
+  const cappedMeta = capMeta(row.meta);
+  const cappedRow = { ...row, meta: cappedMeta };
   if (!isSupabaseConfigured) {
     const db = getMock();
     // RT-BUG-06: in-memory dedup for poll_view/cta_view per hour per cookie+poll — skip duplicate within same UTC hour
-    if ((row.name === "poll_view" || row.name === "cta_view") && row.cookie) {
+    if ((cappedRow.name === "poll_view" || cappedRow.name === "cta_view") && cappedRow.cookie) {
       const hour = new Date().toISOString().slice(0, 13); // YYYY-MM-DDTHH (UTC hour bucket)
-      const key = `${row.cookie}:${row.name}:${row.poll_id ?? ""}:${hour}`;
+      const key = `${cappedRow.cookie}:${cappedRow.name}:${cappedRow.poll_id ?? ""}:${hour}`;
       if (db.eventDedup.has(key)) return;
       db.eventDedup.add(key);
       if (db.eventDedup.size > 5000) {
@@ -460,26 +492,26 @@ export async function recordEvent(row: { name: EventName; poll_id: string | null
         if (first) db.eventDedup.delete(first);
       }
     }
-    db.events.push({ id: nanoid(), name: row.name, poll_id: row.poll_id, cookie: row.cookie, ref: row.ref, meta: row.meta, created_at: new Date().toISOString() });
+    db.events.push({ id: nanoid(), name: cappedRow.name, poll_id: cappedRow.poll_id, cookie: cappedRow.cookie, ref: cappedRow.ref, meta: cappedRow.meta, created_at: new Date().toISOString() });
     persistMock();
     return;
   }
   const supa = supaService()!;
   // RT-BUG-06: Supabase per-hour dedup — check recent event within same UTC hour before insert
-  if ((row.name === "poll_view" || row.name === "cta_view") && row.cookie) {
+  if ((cappedRow.name === "poll_view" || cappedRow.name === "cta_view") && cappedRow.cookie) {
     const hourStart = new Date();
     hourStart.setMinutes(0, 0, 0);
     hourStart.setMilliseconds(0);
     const hourIso = hourStart.toISOString();
     try {
-      let q: any = supa.from("events").select("id").eq("name", row.name).eq("cookie", row.cookie).gte("created_at", hourIso).limit(1);
-      if (row.poll_id) q = q.eq("poll_id", row.poll_id);
+      let q: any = supa.from("events").select("id").eq("name", cappedRow.name).eq("cookie", cappedRow.cookie).gte("created_at", hourIso).limit(1);
+      if (cappedRow.poll_id) q = q.eq("poll_id", cappedRow.poll_id);
       else q = q.is("poll_id", null);
       const { data: dup } = await q.maybeSingle();
       if (dup) return;
     } catch {}
   }
-  await supa.from("events").insert(row as never);
+  await supa.from("events").insert(cappedRow as never);
 }
 
 export async function getMetrics() {

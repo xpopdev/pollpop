@@ -16,7 +16,29 @@ export async function POST(req: NextRequest) {
     if (!ALLOWED.has(name)) return NextResponse.json({ error: "invalid event name" }, { status: 400 });
     const poll_id = body.poll_id ? String(body.poll_id) : null;
     const ref = body.ref ? String(body.ref).slice(0, 120) : (body.ref === null ? null : (new URL(req.url).searchParams.get("ref") || null));
-    const meta = body.meta && typeof body.meta === "object" ? body.meta as Record<string, unknown> : null;
+    let meta = body.meta && typeof body.meta === "object" ? body.meta as Record<string, unknown> : null;
+    // RT-BUG-19: cap meta to 2KB serialized to prevent DoS via large JSON
+    if (meta) {
+      try {
+        if (JSON.stringify(meta).length > 2048) {
+          const filtered: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(meta)) {
+            if (k.length > 64) continue;
+            const vs = JSON.stringify(v);
+            if (vs.length > 512) continue;
+            // also guard String length for non-JSON edge
+            if (String(v).length > 512 && vs.length > 512) continue;
+            filtered[k] = v;
+          }
+          if (JSON.stringify(filtered).length > 2048) {
+            return NextResponse.json({ error: "meta too large" }, { status: 413 });
+          }
+          meta = filtered;
+        }
+      } catch {
+        meta = null;
+      }
+    }
     const cookie = getCookieFromHeader(req.headers.get("cookie")) || (req.headers.get("x-pollpop-cid") ? String(req.headers.get("x-pollpop-cid")) : null);
 
     // RT-BUG-06: validate poll_id exists if provided (global events have poll_id=null)

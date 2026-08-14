@@ -96,7 +96,7 @@ input,textarea{font:inherit}
 .success .row{display:flex;gap:8px;flex-wrap:wrap}
 
 /* POLL PAGE */
-.poll-wrap{max-width:var(--max-narrow);margin:0 auto;padding:16px 20px 90px}
+.poll-wrap{max-width:var(--max-narrow);margin:0 auto;padding:16px 20px 120px}
 .breadcrumb{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin:8px 0 12px}
 .breadcrumb a{text-decoration:underline;text-underline-offset:3px}
 .poll-header{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-xl);padding:16px 16px 14px;box-shadow:var(--shadow)}
@@ -116,6 +116,9 @@ input,textarea{font:inherit}
 }
 @media(max-width:380px){
   .vote-grid.cols-2,.vote-grid.cols-3{grid-template-columns:1fr}
+}
+@media(max-width:340px){
+  .vote-grid.cols-4{grid-template-columns:1fr}
 }
 .opt{position:relative;overflow:hidden;background:var(--card);border:1.5px solid var(--line);border-radius:16px;cursor:pointer;transition:.18s;display:flex;flex-direction:column}
 .opt:hover{border-color:rgba(124,58,237,.3);transform:translateY(-1px);box-shadow:var(--shadow)}
@@ -169,8 +172,10 @@ input,textarea{font:inherit}
 .cta-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 14px;border-radius:999px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.14);font-weight:750;font-size:13px;cursor:pointer}
 .cta-secondary:hover{background:rgba(255,255,255,.14)}
 .micro{position:relative;margin-top:10px;font-size:11px;color:rgba(255,255,255,.5);font-weight:600}
+.cta-dismiss{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.18);display:grid;place-items:center;cursor:pointer;font-size:16px;line-height:1;z-index:2}
+.cta-dismiss:hover{background:rgba(255,255,255,.2)}
 @media(max-width:640px){
-  .cta-card{position:sticky;bottom:12px;z-index:20}
+  .cta-card{position:sticky;bottom:12px;z-index:20;max-height:40dvh;overflow-y:auto}
 }
 
 /* TOAST */
