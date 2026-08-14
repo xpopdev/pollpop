@@ -1279,4 +1279,40 @@ describe("store — createPoll validation", () => {
     expect(fresh!.options.reduce((a, o) => a + o.votes, 0)).toBe(3);
     expect(fresh!.options.map((o) => o.position)).toEqual([0, 1]);
   });
+
+  it("poll creation with 2 options has total votes 0 and both options votes 0 initially (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const res = await createPoll({
+      title: "Which one? — initial total 0",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/init-total-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/init-total-b/600/600" },
+      ],
+      creator_cookie: "init-total-cid",
+      ip: "23.23.23.10",
+    });
+    expect("poll" in res, `expected poll, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    // 2 options exactly
+    expect(res.poll.options).toHaveLength(2);
+    // each option votes 0 initially
+    expect(res.poll.options[0].votes).toBe(0);
+    expect(res.poll.options[1].votes).toBe(0);
+    expect(res.poll.options[0].position).toBe(0);
+    expect(res.poll.options[1].position).toBe(1);
+    // total votes 0 — sum of option votes
+    const total = res.poll.options.reduce((a, o) => a + o.votes, 0);
+    expect(total).toBe(0);
+    expect(res.poll.options.map((o) => o.votes)).toEqual([0, 0]);
+    // persisted via getPoll — still 0/0 and total 0
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.options).toHaveLength(2);
+    expect(fresh!.options[0].votes).toBe(0);
+    expect(fresh!.options[1].votes).toBe(0);
+    expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(fresh!.options.reduce((a, o) => a + o.votes, 0)).toBe(0);
+    expect(fresh!.options.map((o) => o.position)).toEqual([0, 1]);
+  });
 });
