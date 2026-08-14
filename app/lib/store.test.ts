@@ -451,4 +451,34 @@ describe("store — createPoll validation", () => {
     });
     expect(r2).toMatchObject({ status: 404 });
   });
+
+  it("rejects title with blocked words via word-boundary (profanity filter) — 'fuck this fit' 400, 'xxx hot' 400, but 'xxxa' not blocked", async () => {
+    resetMock();
+    const { createPoll } = await import("./store");
+    const good2 = [
+      { label: "A", image_url: "https://picsum.photos/seed/prof-a/600/600" },
+      { label: "B", image_url: "https://picsum.photos/seed/prof-b/600/600" },
+    ];
+    // blocked: word-boundary match for "fuck"
+    const r1 = await createPoll({ title: "fuck this fit", options: good2, creator_cookie: null, ip: "10.10.10.1" });
+    expect(r1).toMatchObject({ status: 400 });
+    if ("error" in (r1 as { error: string; status: number })) {
+      expect((r1 as { error: string }).error).toMatch(/blocked/i);
+    }
+    // blocked: word-boundary match for "xxx"
+    const r2 = await createPoll({ title: "xxx hot", options: good2, creator_cookie: null, ip: "10.10.10.2" });
+    expect(r2).toMatchObject({ status: 400 });
+    if ("error" in (r2 as { error: string; status: number })) {
+      expect((r2 as { error: string }).error).toMatch(/blocked/i);
+    }
+    // NOT blocked: "xxxa" is substring without word boundary — should create poll
+    const ok = await createPoll({ title: "xxxa", options: good2, creator_cookie: null, ip: "10.10.10.3" });
+    expect("poll" in ok, `expected poll for word-boundary non-block "xxxa", got ${JSON.stringify(ok)}`).toBe(true);
+    if ("poll" in ok) {
+      expect(ok.poll.title).toBe("xxxa");
+    }
+    // verify rate limit not interfering — different IP for second blocked check
+    const r3 = await createPoll({ title: "fuck this fit", options: good2, creator_cookie: null, ip: "10.10.10.4" });
+    expect(r3).toMatchObject({ status: 400 });
+  });
 });
