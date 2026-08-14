@@ -1,0 +1,23 @@
+# Weekly CEO report
+
+> Overwritten roughly weekly by the `weekly-report` skill (master protocol §32). No week has
+> completed yet.
+
+WEEK OF:
+
+COMPANY STATUS:
+PRODUCT STATUS:
+RESEARCH STATUS:
+ENGINEERING STATUS:
+QA STATUS:
+SECURITY STATUS:
+MARKET STATUS:
+
+BIGGEST WINS:
+BIGGEST FAILURES:
+BIGGEST RISKS:
+BIGGEST OPPORTUNITIES:
+
+METRICS:
+
+STRATEGIC RECOMMENDATIONS:

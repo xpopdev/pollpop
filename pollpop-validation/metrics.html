@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Metrics — PollPop validation</title>
+<meta name="description" content="PollPop fake-door validation metrics — voter→creator CTR is the kill/pass signal.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark">P</span> PollPop <small>metrics</small></a>
+    <div class="nav-links">
+      <a class="pill" href="index.html">All polls</a>
+      <a class="pill" href="create.html">Create poll</a>
+    </div>
+  </div>
+</nav>
+
+<div class="metrics-wrap">
+  <div style="display:flex;align-items:end;justify-content:space-between;gap:16px;flex-wrap:wrap">
+    <div>
+      <span class="eyebrow"><span class="dot"></span> Validation dashboard — localStorage · offline</span>
+      <h1 style="margin:10px 0 6px;font-size:26px;letter-spacing:-.03em;font-weight:900">Voter → Creator CTR</h1>
+      <p style="margin:0;color:var(--muted);font-size:13px;line-height:1.5;max-width:640px">Primary metric: <b>cta_clicks / unique_voters</b>. Also shown: voters_per_poll, cta_views, fake-door submits. Kill criteria from <code>company/decisions/approved.md</code> are visualized below. Data is per-browser (localStorage) for validation — export via buttons.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn small" id="btn-export">Export JSON</button>
+      <button class="btn small" id="btn-copy">Copy summary</button>
+      <button class="btn small" id="btn-reset" style="color:#dc2626;border-color:#fecaca">Reset data</button>
+    </div>
+  </div>
+
+  <div class="kpi-grid" id="kpi-grid">
+    <!-- injected -->
+  </div>
+
+  <div class="verdict" id="verdict"><!-- injected --></div>
+
+  <div style="margin-top:16px;display:grid;grid-template-columns:1.2fr .8fr;gap:14px" id="mid-row">
+    <div class="table-wrap">
+      <h3>Per-poll breakdown</h3>
+      <table class="table" id="per-poll-table">
+        <thead><tr><th>Poll</th><th>Views</th><th>Votes</th><th>CTA views</th><th>CTA clicks</th><th>CTR*</th><th>Fake submits</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p style="padding:8px 14px;color:var(--muted);font-size:11px;font-weight:600;margin:0">*CTR per poll = cta_clicks / votes in that poll (directional only). Primary CTR is <b>global: total cta_clicks / unique voters</b>.</p>
+    </div>
+
+    <div class="table-wrap">
+      <h3>Kill criteria</h3>
+      <div style="padding:12px 14px;display:grid;gap:10px;font-size:13px">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;background:rgba(16,185,129,.08);border:1px solid #6ee7b7"><span><b>≥ 0.08</b> CTR → <b>PASS</b></span><span style="font-size:11px;color:var(--muted)">Build MVP</span></div>
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;background:#fffbeb;border:1px solid #fcd34d"><span><b>0.03 – 0.08</b> → <b>RETRY</b></span><span style="font-size:11px;color:var(--muted)">One tweak</span></div>
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;background:#fef2f2;border:1px solid #fca5a5"><span><b>&lt; 0.03</b> → <b>KILL</b></span><span style="font-size:11px;color:var(--muted)">Back to research</span></div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.5;margin-top:4px">
+          Also KILL if <b>voters_per_poll &lt; 3</b> across &gt;10 polls, or unfurl suppressed &gt;50% vs direct.<br>
+          Source: <a href="../company/decisions/approved.md" style="text-decoration:underline">company/decisions/approved.md</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-wrap" style="margin-top:14px">
+    <h3>Event log — newest first (localStorage pollpop_events) <span id="event-count" style="font-weight:800"></span></h3>
+    <div class="event-log">
+      <table class="table" id="event-table">
+        <thead><tr><th>Time</th><th>Type</th><th>Poll</th><th>Detail</th><th>Voter</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div style="margin-top:14px;background:var(--card);border:1px dashed var(--line);border-radius:16px;padding:14px">
+    <h3 style="margin:0;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">How to read this (also in README)</h3>
+    <ol style="margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:13px;line-height:1.6">
+      <li><b>Seed 12–15 group chats</b> with poll links (<code>poll.html?id=fit-check</code> etc. or <code>p/fit-check.html</code> for OG). Each <b>poll_view</b> + <b>vote</b> + <b>cta_view</b>/<b>cta_click</b> is tracked.</li>
+      <li><b>Primary metric:</b> <code>CTR = cta_clicks / unique_voters</code> (unique_voters = distinct voter_ids that voted). This is the “Create your own poll — 15s →” click rate.</li>
+      <li><b>Read verdict</b> above after 7 days or ~30+ voters. <b>≥0.08 PASS, 0.03–0.08 RETRY, &lt;0.03 KILL</b>.</li>
+      <li>Console: <code>PollPopAnalytics.computeMetrics()</code> and <code>PollPopAnalytics.getEvents()</code> / export JSON button.</li>
+    </ol>
+  </div>
+</div>
+
+<script src="js/analytics.js"></script>
+<script src="js/app.js"></script>
+<script>
+function render(){
+  const m = PollPopAnalytics.computeMetrics();
+  const v = PollPopAnalytics.verdictForCtr(m.ctr);
+
+  // KPIs
+  const kpis = [
+    { label:'Poll views', value: m.poll_views, sub:'poll_view events' },
+    { label:'Votes', value: m.votes, sub:`${m.unique_voters} unique voters` },
+    { label:'CTA views', value: m.cta_views, sub:'saw results + CTA' },
+    { label:'CTA clicks', value: m.cta_clicks, sub:'clicked “Create your own”' },
+    { label:'CTR (primary)', value: (m.ctr*100).toFixed(1)+'%', sub:'cta_clicks / unique voters', cls:'ctr' },
+  ];
+  const grid = document.getElementById('kpi-grid');
+  grid.innerHTML = kpis.map(k=>`
+    <div class="kpi ${k.cls||''}">
+      <label>${k.label}</label>
+      <b>${k.value}</b>
+      <span>${k.sub}</span>
+    </div>
+  `).join('');
+
+  // add secondary line
+  const extra = document.createElement('div');
+  extra.style.cssText='grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;margin-top:2px';
+  extra.innerHTML = `
+    <span class="tag">Fake-door submits: <b>${m.fake_submits}</b></span>
+    <span class="tag">Total events: <b>${m.total_events}</b></span>
+    <span class="tag">Unique voters (overall): <b>${m.unique_voters_overall}</b></span>
+    <span class="tag">CTR (overall uniq): <b>${(m.ctr_overall*100).toFixed(1)}%</b></span>
+    <span class="tag">Voter ID: <span class="mono">${PollPopAnalytics.getVoterId()}</span></span>
+  `;
+  grid.appendChild(extra);
+
+  // verdict
+  const verdictEl = document.getElementById('verdict');
+  verdictEl.className = 'verdict '+v.cls;
+  verdictEl.innerHTML = `
+    <div><b>${v.label}</b><br><span>${v.detail}</span></div>
+    <div style="text-align:right"><span class="mono" style="font-size:13px">CTR = ${m.cta_clicks} / ${m.unique_voters||0} = ${(m.ctr*100).toFixed(2)}%</span><br><span style="font-size:11px;color:var(--muted)">Thresholds: 0.03 / 0.08</span></div>
+  `;
+
+  // per-poll table
+  const tbody = document.querySelector('#per-poll-table tbody');
+  tbody.innerHTML='';
+  // fetch polls to get titles
+  fetchPollsRobust().then(polls=>{
+    const ids = Object.keys(m.per_poll);
+    // ensure all 8 polls appear even with 0 events
+    for(const p of polls){
+      if(!m.per_poll[p.id]) m.per_poll[p.id]={views:0,votes:0,cta_views:0,cta_clicks:0,fake_submits:0, _title:p.title, _cat:p.category};
+      else { m.per_poll[p.id]._title=p.title; m.per_poll[p.id]._cat=p.category; }
+    }
+    for(const p of polls){
+      const row = m.per_poll[p.id];
+      const ctrPoll = row.votes ? (row.cta_clicks/row.votes) : 0;
+      const tr=document.createElement('tr');
+      tr.innerHTML = `<td><b>${escapeHtml(row._title||p.id)}</b><br><span style="font-size:11px;color:var(--muted)">${p.category} · ${p.id}</span></td><td>${row.views}</td><td>${row.votes}</td><td>${row.cta_views}</td><td>${row.cta_clicks}</td><td>${(ctrPoll*100).toFixed(1)}%</td><td>${row.fake_submits}</td>`;
+      tbody.appendChild(tr);
+    }
+  }).catch(()=>{
+    for(const [pid, row] of Object.entries(m.per_poll)){
+      const ctrPoll = row.votes ? (row.cta_clicks/row.votes) : 0;
+      const tr=document.createElement('tr');
+      tr.innerHTML = `<td class="mono">${pid}</td><td>${row.views}</td><td>${row.votes}</td><td>${row.cta_views}</td><td>${row.cta_clicks}</td><td>${(ctrPoll*100).toFixed(1)}%</td><td>${row.fake_submits}</td>`;
+      tbody.appendChild(tr);
+    }
+  });
+
+  // events
+  const evTbody = document.querySelector('#event-table tbody');
+  evTbody.innerHTML='';
+  document.getElementById('event-count').textContent = `(${m.events.length})`;
+  const rev = [...m.events].reverse();
+  for(const e of rev.slice(0,200)){
+    const d = new Date(e.timestamp);
+    const time = d.toLocaleString();
+    let detail='';
+    if(e.type==='vote') detail = `option ${e.option}`;
+    else if(e.type==='fake_door_submit') detail = `${e.template_choice||''} · ${(e.question||'').slice(0,40)}`;
+    else if(e.type==='cta_click') detail = e.variant||'primary CTA';
+    else if(e.type==='poll_view') detail = 'view';
+    else detail = e.poll_id||'';
+    const tr=document.createElement('tr');
+    tr.innerHTML = `<td class="mono" style="white-space:nowrap">${time}</td><td><span class="tag" style="padding:3px 8px">${e.type}</span></td><td class="mono">${e.poll_id||'—'}</td><td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(detail)}</td><td class="mono" style="font-size:11px">${(e.voter_id||'').slice(0,10)}</td>`;
+    evTbody.appendChild(tr);
+  }
+  if(rev.length===0){
+    evTbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:18px">No events yet — visit a poll and vote to generate data. Then check back here.</td></tr>`;
+  }
+}
+
+function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+render();
+window.addEventListener('pollpop:track', render);
+setInterval(render, 1500);
+
+document.getElementById('btn-export').addEventListener('click', ()=>{
+  const m = PollPopAnalytics.computeMetrics();
+  const blob = new Blob([JSON.stringify(m,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=`pollpop-metrics-${new Date().toISOString().slice(0,10)}.json`; a.click();
+  URL.revokeObjectURL(url);
+});
+document.getElementById('btn-copy').addEventListener('click', async ()=>{
+  const m = PollPopAnalytics.computeMetrics();
+  const v = PollPopAnalytics.verdictForCtr(m.ctr);
+  const txt = `PollPop validation — ${new Date().toLocaleString()}
+CTR = ${m.cta_clicks} / ${m.unique_voters||0} = ${(m.ctr*100).toFixed(2)}%  → ${v.label}
+Views ${m.poll_views} · Votes ${m.votes} · CTA views ${m.cta_views} · CTA clicks ${m.cta_clicks} · Fake submits ${m.fake_submits}
+Unique voters: ${m.unique_voters} (overall ${m.unique_voters_overall})
+Verdict: ${v.detail}`;
+  try{ await navigator.clipboard.writeText(txt); alert('Summary copied.'); }catch{ prompt('Copy summary:', txt); }
+});
+document.getElementById('btn-reset').addEventListener('click', ()=>{
+  if(!confirm('Reset all PollPop validation data for this browser? This clears votes + analytics.')) return;
+  localStorage.removeItem('pollpop_events');
+  localStorage.removeItem('pollpop_tallies');
+  localStorage.removeItem('pollpop_voted');
+  // keep voter id so uniqueness still tracks, but clear session
+  sessionStorage.clear();
+  render();
+  alert('Reset done.');
+});
+
+// responsive mid-row collapse
+const mq = window.matchMedia('(max-width: 720px)');
+function handleMq(){ document.getElementById('mid-row').style.gridTemplateColumns = mq.matches ? '1fr' : '1.2fr .8fr'; }
+mq.addEventListener('change', handleMq); handleMq();
+</script>
+</body>
+</html>

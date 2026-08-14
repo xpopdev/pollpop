@@ -1,0 +1,127 @@
+[
+  {
+    "id": "fit-check",
+    "slug": "fit-check",
+    "title": "Which fit for date night?",
+    "question": "Which fit for date night? Be honest.",
+    "description": "Help me not embarrass myself. Vote — I’m checking results every 10 min.",
+    "category": "Style",
+    "creator": "Maya · NYC",
+    "options": [
+      { "id": "a", "label": "Fit A — Street + Gold", "image": "https://picsum.photos/seed/pollpop-fitA/600/750", "color": "#ff3b82" },
+      { "id": "b", "label": "Fit B — Minimal Cream", "image": "https://picsum.photos/seed/pollpop-fitB/600/750", "color": "#7c3aed" }
+    ],
+    "votes": { "a": 47, "b": 52 },
+    "ogImage": "https://picsum.photos/seed/pollpop-fitA/1200/630"
+  },
+  {
+    "id": "brunch-crew",
+    "slug": "brunch-crew",
+    "title": "Where are we eating Saturday?",
+    "question": "Where are we eating Saturday? Majority wins, no debate.",
+    "description": "Group chat is chaos. This settles it — vote and we book it.",
+    "category": "Food",
+    "creator": "Jae · SF",
+    "options": [
+      { "id": "a", "label": "Sushi Bar", "image": "https://picsum.photos/seed/pollpop-sushi/600/600", "color": "#0ea5e9" },
+      { "id": "b", "label": "Tacos Al Pastor", "image": "https://picsum.photos/seed/pollpop-tacos/600/600", "color": "#f59e0b" },
+      { "id": "c", "label": "Korean BBQ", "image": "https://picsum.photos/seed/pollpop-kbbq/600/600", "color": "#ef4444" },
+      { "id": "d", "label": "Brunch & Mimosas", "image": "https://picsum.photos/seed/pollpop-brunch/600/600", "color": "#10b981" }
+    ],
+    "votes": { "a": 31, "b": 44, "c": 29, "d": 18 },
+    "ogImage": "https://picsum.photos/seed/pollpop-sushi/1200/630"
+  },
+  {
+    "id": "logo-battle",
+    "slug": "logo-battle",
+    "title": "Which logo for my coffee shop?",
+    "question": "Which logo for my coffee shop? Opening next month.",
+    "description": "Two directions — brutal honesty appreciated. Which would you actually walk into?",
+    "category": "Design",
+    "creator": "Sam · Portland",
+    "options": [
+      { "id": "a", "label": "A — Bold Serif", "image": "https://picsum.photos/seed/pollpop-logoA/600/600", "color": "#111827" },
+      { "id": "b", "label": "B — Soft Script", "image": "https://picsum.photos/seed/pollpop-logoB/600/600", "color": "#d97706" }
+    ],
+    "votes": { "a": 63, "b": 41 },
+    "ogImage": "https://picsum.photos/seed/pollpop-logoA/1200/630"
+  },
+  {
+    "id": "thumbnail-wars",
+    "slug": "thumbnail-wars",
+    "title": "Which YouTube thumbnail pops?",
+    "question": "Which thumbnail would YOU click?",
+    "description": "Same video, two thumbnails. Need the click-through winner before I publish tonight.",
+    "category": "Creator",
+    "creator": "Alex · Creator",
+    "options": [
+      { "id": "a", "label": "A — Shock Face", "image": "https://picsum.photos/seed/pollpop-thumbA/600/600", "color": "#dc2626" },
+      { "id": "b", "label": "B — Clean Text", "image": "https://picsum.photos/seed/pollpop-thumbB/600/600", "color": "#2563eb" },
+      { "id": "c", "label": "C — Before/After", "image": "https://picsum.photos/seed/pollpop-thumbC/600/600", "color": "#7c3aed" }
+    ],
+    "votes": { "a": 38, "b": 55, "c": 47 },
+    "ogImage": "https://picsum.photos/seed/pollpop-thumbA/1200/630"
+  },
+  {
+    "id": "sneaker-drop",
+    "slug": "sneaker-drop",
+    "title": "Which sneakers should I cop?",
+    "question": "Which pair should I cop? One chance, one pair.",
+    "description": "Both on sale for 2 hours. Tell me which to buy and I’ll do it live on results.",
+    "category": "Style",
+    "creator": "Zay · London",
+    "options": [
+      { "id": "a", "label": "A — Panda Dunks", "image": "https://picsum.photos/seed/pollpop-dunkA/600/600", "color": "#111827" },
+      { "id": "b", "label": "B — Cream New Balance", "image": "https://picsum.photos/seed/pollpop-dunkB/600/600", "color": "#e7e5e4" }
+    ],
+    "votes": { "a": 72, "b": 68 },
+    "ogImage": "https://picsum.photos/seed/pollpop-dunkA/1200/630"
+  },
+  {
+    "id": "living-room",
+    "slug": "living-room",
+    "title": "Which living room vibe?",
+    "question": "Which living room are you living in?",
+    "description": "Moving next week — help me choose. A is coquette, B is brutalist. No fence-sitters.",
+    "category": "Interiors",
+    "creator": "Priya · Austin",
+    "options": [
+      { "id": "a", "label": "A — Warm Minimal", "image": "https://picsum.photos/seed/pollpop-roomA/600/600", "color": "#fef3c7" },
+      { "id": "b", "label": "B — Moody Dark", "image": "https://picsum.photos/seed/pollpop-roomB/600/600", "color": "#1f2937" },
+      { "id": "c", "label": "C — Color Pop", "image": "https://picsum.photos/seed/pollpop-roomC/600/600", "color": "#f43f5e" }
+    ],
+    "votes": { "a": 51, "b": 39, "c": 44 },
+    "ogImage": "https://picsum.photos/seed/pollpop-roomA/1200/630"
+  },
+  {
+    "id": "album-cover",
+    "slug": "album-cover",
+    "title": "Which album cover goes harder?",
+    "question": "Which album cover goes harder?",
+    "description": "Dropping my EP Friday. Cover A vs Cover B — which feels like a real artist?",
+    "category": "Music",
+    "creator": "Kei · LA",
+    "options": [
+      { "id": "a", "label": "A — Neon Blur", "image": "https://picsum.photos/seed/pollpop-albumA/600/600", "color": "#06b6d4" },
+      { "id": "b", "label": "B — Grain B&W", "image": "https://picsum.photos/seed/pollpop-albumB/600/600", "color": "#71717a" }
+    ],
+    "votes": { "a": 46, "b": 59 },
+    "ogImage": "https://picsum.photos/seed/pollpop-albumA/1200/630"
+  },
+  {
+    "id": "airbnb-pick",
+    "slug": "airbnb-pick",
+    "title": "Which Airbnb for the group trip?",
+    "question": "Which Airbnb are we booking for Joshua Tree?",
+    "description": "8 of us, 3 nights. A is poolside modern, B is desert boho. Vote or you can’t complain later.",
+    "category": "Travel",
+    "creator": "Riley · Group Trip",
+    "options": [
+      { "id": "a", "label": "A — Poolside Modern", "image": "https://picsum.photos/seed/pollpop-airbnbA/600/600", "color": "#0ea5e9" },
+      { "id": "b", "label": "B — Desert Boho", "image": "https://picsum.photos/seed/pollpop-airbnbB/600/600", "color": "#f97316" },
+      { "id": "c", "label": "C — Cabin Minimal", "image": "https://picsum.photos/seed/pollpop-airbnbC/600/600", "color": "#78716c" }
+    ],
+    "votes": { "a": 41, "b": 37, "c": 22 },
+    "ogImage": "https://picsum.photos/seed/pollpop-airbnbA/1200/630"
+  }
+]

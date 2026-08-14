@@ -1,0 +1,18 @@
+# Personal Claude Code overrides — never shared
+.claude/settings.local.json
+CLAUDE.local.md
+
+# Autonomy cross-check hook's debounce cache — machine/session-local, not meaningful to share
+.claude/.autonomy-check-cache
+
+# OS / editor noise
+.DS_Store
+*.swp
+
+# Common dependency / build output (uncomment or extend once a product stack is chosen)
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+dist/
+build/
