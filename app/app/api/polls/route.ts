@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Upload any data URLs to Supabase Storage when configured; mock keeps data URL
-    const hasDataUrl = options.some((o) => o.image_url.startsWith("data:"));
+    const hasDataUrl = options.some((o: { image_url: string }) => o.image_url.startsWith("data:"));
     if (hasDataUrl && isSupabaseConfigured) {
       const supa = supaService();
       if (supa) {
