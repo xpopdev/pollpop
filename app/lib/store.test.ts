@@ -191,4 +191,32 @@ describe("store — createPoll validation", () => {
     const total = fresh?.options.reduce((a, o) => a + o.votes, 0);
     expect(total).toBe(N);
   });
+
+  it("mock fallback: Storage upload NOT taken — data URL kept as data: and poll still creates", async () => {
+    resetMock();
+    // isSupabaseConfigured is false in this suite (env deleted in beforeEach) — mock path.
+    // Documents: data URL stays verbatim, no Storage upload is attempted in mock mode.
+    const TINY_PNG_DATA_URL =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=";
+    const { createPoll } = await import("./store");
+    const res = await createPoll({
+      title: "mock fallback data URL",
+      options: [
+        { label: "A", image_url: TINY_PNG_DATA_URL },
+        { label: "B", image_url: "https://picsum.photos/seed/mock-fallback-b/600/600" },
+      ],
+      creator_cookie: "mock-fallback-cid",
+      ip: "5.5.5.5",
+    });
+    expect("poll" in res, `expected poll, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    expect(res.poll.options).toHaveLength(2);
+    const optA = res.poll.options.find((o) => o.label === "A");
+    expect(optA).toBeDefined();
+    // Storage upload path is NOT taken in mock mode — image_url still starts with data:
+    expect(optA!.image_url.startsWith("data:")).toBe(true);
+    expect(optA!.image_url).toBe(TINY_PNG_DATA_URL);
+    const optB = res.poll.options.find((o) => o.label === "B");
+    expect(optB!.image_url).toBe("https://picsum.photos/seed/mock-fallback-b/600/600");
+  });
 });
