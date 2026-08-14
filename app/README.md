@@ -1,5 +1,9 @@
 # PollPop — Supabase MVP
 
+## 06:00 manual unblock — prod writes 500
+
+Prod `POST /api/polls` is 500 `fetch failed` until Vercel env + Storage bucket are fixed — see [`company/history/done_later.md`](../company/history/done_later.md) steps 1–3 (Vercel `NEXT_PUBLIC_SUPABASE_URL`/keys/`IP_HASH_SALT` + Supabase `poll-images` public bucket). After fix run [`scripts/verify-06am.sh`](../scripts/verify-06am.sh): `bash scripts/verify-06am.sh` (hits `pollpop-five.vercel.app`, 5 curls → 201/`poll-images`/`totals`/OG headers).
+
 15s visual polls with a participation-required viral loop: **create → vote (no auth) → live results → share + OG → CTA “Create your own →” → new poll**.
 
 This is **Phase 3 BUILD** after H-001 validation PASS (CTR ≥0.08 per `company/decisions/approved.md`). Spec authority: `company/product/requirements.md`, `architecture.md`, `ux.md`.

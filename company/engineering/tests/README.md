@@ -20,4 +20,4 @@ What it does (53 lines, `set -e`, `curl -s -w` for status, `jq` if available els
 5. `GET /api/metrics` → expect `200` with `totals`
 6. `GET /api/polls/<id>/og` → expect `200`, `content-type: image/png` or `image/svg+xml`, and `x-pollpop-og` header
 
-Do not run before 06:00 manual fixes — prod `POST` currently 500 (`fetch failed`) until env/bucket are live. See `qa-2026-08-14-phaseB.md` and `smoke-2026-08-14-retry.md` for blocked status.
+CI: `test` 11/11 + `e2e` 2/2 green at b161b4b via mock `webServer` (`PLAYWRIGHT_BASE_URL=http://localhost:3000`, no Supabase — `Running 2 tests ... 2 passed (12.0s)` on run 31822972048). Prod `POST` still 500 until 06:00 env/bucket fix above — see `qa-2026-08-14-phaseB.md` and `smoke-2026-08-14-retry.md` for blocked status.
