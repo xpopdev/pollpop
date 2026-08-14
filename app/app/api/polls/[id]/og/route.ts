@@ -25,7 +25,7 @@ export const dynamic = "force-dynamic";
 // ─────────────────────────────────────────────────────────────────────
 
 function escapeXml(s: string) {
-  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g, "&#39;");
 }
 
 // Edge OG: try to serve PNG (WhatsApp/Discord require image/png) via sharp,
