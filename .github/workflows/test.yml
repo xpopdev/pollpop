@@ -22,7 +22,6 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    if: false # enable after Playwright browsers cached — run manually via workflow_dispatch
     defaults:
       run:
         working-directory: app
@@ -34,3 +33,5 @@ jobs:
       - run: npm install
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
