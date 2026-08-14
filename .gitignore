@@ -1,3 +1,10 @@
+# Secrets — never commit (gitignored; only .env.example is tracked)
+.env
+.env.local
+.env.*.local
+supabase/.env
+pollpop-validation/.env
+
 # Personal Claude Code overrides — never shared
 .claude/settings.local.json
 CLAUDE.local.md
@@ -9,7 +16,11 @@ CLAUDE.local.md
 .DS_Store
 *.swp
 
-# Common dependency / build output (uncomment or extend once a product stack is chosen)
+# App mock store (file fallback for mock mode when Supabase not configured)
+app/.pollpop-mock.json
+.pollpop-mock.json
+
+# Common dependency / build output
 node_modules/
 __pycache__/
 *.pyc

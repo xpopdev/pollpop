@@ -5,16 +5,16 @@
 
 **Autonomy mode:** UNATTENDED
 
-**Current phase:** PHASE 2 — VALIDATION (PollPop fake-door, DEPLOYED)
+**Current phase:** PHASE 3 — BUILD (PollPop Supabase MVP)
 
 **Last updated:** 2026-08-14
 
-**Active department / agent:** Research / validation-engine + devops (deployed)
+**Active department / agent:** Engineering (backend + frontend + AI/ML + devops, coordinated by engineering-manager)
 
-**Summary:** PollPop validation site deployed to GitHub Pages: https://xpopdev.github.io/pollpop/ (repo: xpopdev/pollpop, branch main, path /docs). Company repo initialized and pushed (0899ac7 + c133b4a). Hypotheses in validation/hypotheses.md (H-001 CTR≥0.08 binding). 7-day seeding window starts now — measure at metrics page. gh/gh auth verified (xpopdev, full scopes).
+**Summary:** Validation PASS received 2026-08-14 — H-001 CTR ≥0.08 confirmed per human verdict (fake-door: 8 polls → 12–15 group chats → 7-day measurement). Proceeding to 1–2 week Supabase MVP per company/decisions/approved.md + product specs (problem.md, requirements.md, architecture.md, ux.md — all now promoted from DRAFT). Kill criteria no longer binding — validated. Next gates: quality-bar + red-team-review before MVP complete. Level 3 (spend/deploy/publish) still requires explicit confirmation per CLAUDE.md.
 
-**In flight:** Awaiting 12–15 group-chat seeding + 7-day measurement; Pages status: built
+**In flight:** Supabase MVP scaffold — create/vote/realtime/OG/soft-dedup/NSFW/K-factor instrumentation
 
-**Blocked on:** Seeding — needs 8 poll links shared to real group chats (see seeding instructions below)
+**Blocked on:** nothing
 
-**Next action:** Human seeds poll links; monitor https://xpopdev.github.io/pollpop/metrics.html for verdict (PASS ≥0.08 / RETRY 0.03-0.08 / KILL <0.03). On PASS → scaffold Supabase MVP. On KILL → archive to rejected_ideas.md, return to discovery.
+**Next action:** Scaffold Supabase schema + API + realtime + OG rendering + instrumentation per architecture.md; wire vote→results→CTA loop; implement metrics (CTR, voters_per_poll, K-factor, referred retention)
