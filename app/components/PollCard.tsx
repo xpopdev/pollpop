@@ -17,7 +17,7 @@ export function PollCard({ poll }: { poll: Poll }) {
           style={{
             position: "absolute",
             inset: 0,
-            background: "linear-gradient(to top, rgba(0,0,0,.55) 0%, transparent 55%)",
+            background: "rgba(18,18,20,.42)",
             display: "flex",
             alignItems: "flex-end",
             padding: 14,
@@ -96,10 +96,11 @@ export function PollCard({ poll }: { poll: Poll }) {
                 width: 24,
                 height: 24,
                 borderRadius: "50%",
-                background: "linear-gradient(135deg,var(--accent2),var(--accent))",
+                background: "var(--color-oat-warm)",
+                border: "1px solid var(--color-stone)",
                 display: "grid",
                 placeItems: "center",
-                color: "white",
+                color: "var(--color-slate-dark)",
                 fontSize: 11,
                 fontWeight: 900,
               }}
