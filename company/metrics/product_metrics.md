@@ -1,12 +1,12 @@
 # Product metrics
 
-> Tracked per §22. All values ESTIMATE per §29 until live 7-day measurement — do not cite as VERIFIED.
+> §29 labels. Prod POST 500 VERIFIED block until 06:00 manual (Vercel env + `poll-images` bucket per `done_later.md` §1–2). File instrumentation VERIFIED (`app/lib/store.ts:getMetrics`/`recordEvent`, `004_storage.sql` on disk, 11 vitest + 2 e2e green on CI, `4c54264` `scripts/verify-06am.sh` ready).
 
-**Infra:** Prod `pollpop-five.vercel.app` → Supabase `dgurslguhkatnshlzvfcy` (events table). CI `50fe5d4` green (vitest 11/11 + build) enables live measurement. Instrumentation per `company/product/requirements.md` P0-6 and `app/lib/store.ts:getMetrics()`.
+**Infra:** Prod `pollpop-five.vercel.app` → Supabase `dgurslguhkatnshlzvfcy` (events); file fallback `.pollpop-mock.json`.
 
 **Binding (P0-6):**
-- CTR `cta_click / poll_view` — ESTIMATE (fake-door was INFERRED; live events exist but <50 poll_views, no verdict). Threshold ≥0.08 PASS per `decisions/approved.md`.
-- K-factor `polls_created_via_cta / poll_view` — ESTIMATE; paired with referred retention.
-- Referred retention `referred_creators_with_2nd_poll_in_7d / referred_creators` — ESTIMATE (HYPOTHESIS).
+- CTR `cta_click / poll_view` — ESTIMATE, ≥0.08 PASS; <50 views no verdict.
+- K `polls_via_cta / poll_view` — ESTIMATE, paired w/ retention.
+- Referred retention 2nd poll in 7d — ESTIMATE (HYPOTHESIS).
 
-**Next:** 7-day live run to 50+ poll_views; check `company/research/competitor_watch.md` next cycle (§25).
+**Next:** 5 curls `scripts/verify-06am.sh` must pass live before ESTIMATE→VERIFIED; `competitor_watch.md` INFERRED until WebFetch recovers §25; then 7-day run to 50+ poll_views.
