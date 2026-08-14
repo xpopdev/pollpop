@@ -318,6 +318,75 @@ describe("store — createPoll validation", () => {
     expect("poll" in ok, `expected poll at exactly 6MB, got ${JSON.stringify(ok).slice(0, 200)}`).toBe(true);
   });
 
+  it("rejects data URL with non-image mime (text/plain) 400 — store defense-in-depth (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll } = await import("./store");
+    const goodB = { label: "B", image_url: "https://picsum.photos/seed/nonimg-b/600/600" };
+    const goodA = { label: "A", image_url: "https://picsum.photos/seed/nonimg-a/600/600" };
+
+    // base64 text/plain — must be 400 Only image data URLs are allowed (route guards, store also guards)
+    const r1 = await createPoll({
+      title: "non-image mime base64",
+      options: [
+        { label: "A", image_url: "data:text/plain;base64,SGVsbG8sIFdvcmxkIQ==" },
+        goodB,
+      ],
+      creator_cookie: null,
+      ip: "18.18.18.1",
+    });
+    expect(r1).toMatchObject({ status: 400 });
+    if ("error" in (r1 as { error: string; status: number })) {
+      expect((r1 as { error: string }).error).toMatch(/Only image data URLs are allowed/i);
+    }
+
+    // non-base64 text/plain — also 400 (same mime guard)
+    const r2 = await createPoll({
+      title: "non-image mime plain",
+      options: [
+        goodA,
+        { label: "B", image_url: "data:text/plain,hello" },
+      ],
+      creator_cookie: null,
+      ip: "18.18.18.2",
+    });
+    expect(r2).toMatchObject({ status: 400 });
+    if ("error" in (r2 as { error: string; status: number })) {
+      expect((r2 as { error: string }).error).toMatch(/Only image data URLs are allowed/i);
+    }
+
+    // text/html base64 — also non-image, 400
+    const r3 = await createPoll({
+      title: "non-image mime html",
+      options: [
+        { label: "A", image_url: "data:text/html;base64,PGgxPkhlbGxvPC9oMT4=" },
+        goodB,
+      ],
+      creator_cookie: null,
+      ip: "18.18.18.3",
+    });
+    expect(r3).toMatchObject({ status: 400 });
+    if ("error" in (r3 as { error: string; status: number })) {
+      expect((r3 as { error: string }).error).toMatch(/Only image data URLs are allowed/i);
+    }
+
+    // control: image/png data URL still succeeds after rejects (proves guard not over-broad)
+    const TINY_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=";
+    const ok = await createPoll({
+      title: "non-image guard control ok",
+      options: [
+        { label: "A", image_url: TINY_PNG },
+        goodB,
+      ],
+      creator_cookie: null,
+      ip: "18.18.18.4",
+    });
+    expect("poll" in ok, `expected poll for image/png control, got ${JSON.stringify(ok)}`).toBe(true);
+    if ("poll" in ok) {
+      expect(ok.poll.options[0].image_url).toBe(TINY_PNG);
+      expect(ok.poll.options[1].image_url).toBe(goodB.image_url);
+    }
+  });
+
   it("poll with 3 options has positions 0,1,2 in order and votes start at 0", async () => {
     resetMock();
     const { createPoll, getPoll } = await import("./store");
