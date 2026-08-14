@@ -166,7 +166,7 @@ export async function createPoll(input: {
   options: { label: string; image_url: string }[];
   creator_cookie: string | null;
   ip: string;
-}): Promise<{ poll: Poll } | { error: string; status: number; code: string; retry_after: number }> {
+}): Promise<{ poll: Poll } | { error: string; status: number; code?: string; retry_after?: number }> {
   const title = input.title.trim();
   if (!title || title.length > 80) return { error: "Title required (≤80 chars)", status: 400 };
   if (input.options.length < 2 || input.options.length > 4) return { error: "2–4 options required", status: 400 };
@@ -266,7 +266,7 @@ export async function voteOnPoll(input: {
   option_id: string;
   voter_cookie: string;
   ip: string;
-}): Promise<{ counts: Record<string, number>; total: number } | { error: string; status: number; code: string; retry_after: number }> {
+}): Promise<{ counts: Record<string, number>; total: number } | { error: string; status: number; code?: string; retry_after?: number }> {
   const poll = await getPoll(input.poll_id);
   if (!poll) return { error: "Poll not found", status: 404 };
   if (!poll.options.find((o) => o.id === input.option_id)) return { error: "Option not found", status: 400 };
