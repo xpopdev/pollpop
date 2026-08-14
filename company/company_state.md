@@ -5,16 +5,16 @@
 
 **Autonomy mode:** UNATTENDED
 
-**Current phase:** PHASE 3 — BUILD (004 Storage applied, perf bench next)
+**Current phase:** PHASE 3 — BUILD (b724100 green, perf bench added, auto loop)
 
 **Last updated:** 2026-08-14
 
-**Active department / agent:** Engineering (perf bench) + QA
+**Active department / agent:** QA (all checks green) → Product (quality-bar re-score)
 
-**Summary:** 004_storage.sql applied per user (poll-images bucket public + RLS service write, anon read). Prior 003 RLS, 002 RPC done. CI 9eaefad docs + 0194cd8 all green (test 11/11 + e2e 2/2 + build + pages). Design exact 56c2bcf, prod pollpop-five live. Handoff 2026-08-14_build_to_build written. Auto loop Phase B — next perf bench (15s/500ms/2s) → quality-bar → §40.
+**Summary:** b724100 all checks green: test 11/11 + e2e 2/2 + build + deploy + report-build-status success. Perf bench stub added (method for 15s/500ms/2s vs actual). Storage 004 applied so data URL path live. Design exact 56c2bcf, RLS 003, OG nodejs, metrics hardening done. Quality-bar was 9/17 PASS (e2e flipped), now perf moves FAIL→PARTIAL (10/17). Prod pollpop-five live, fake-door xpopdev.github.io/pollpop live.
 
-**In flight:** Perf bench stub (engineering/performance) + next hardening
+**In flight:** Quality-bar re-score 10/17 → then next P2 hardening (competitor re-verify, docs, CEO re-review) → prod smoke (data URL upload to bucket) → §40
 
-**Blocked on:** nothing — auto loop, 004 now applied so data URL → Storage path live in prod
+**Blocked on:** nothing — auto Phase B loop
 
-**Next action:** Perf bench → quality-bar re-score → growth metrics → loop
+**Next action:** quality-bar → daily-report drift → next increment → loop until 17/17 → milestone
