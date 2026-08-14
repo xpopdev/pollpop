@@ -245,4 +245,39 @@ describe("store — createPoll validation", () => {
     });
     expect(limited).toMatchObject({ status: 429, code: "RATE_LIMITED" });
   });
+
+  it("enforces 10/poll/IP/24h vote rate limit in mock mode (10 succeed, 11th 429 RATE_LIMITED)", async () => {
+    resetMock();
+    const { createPoll, voteOnPoll } = await import("./store");
+    const c = await createPoll({
+      title: "vote rate limit test",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/voterateA/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/voterateB/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "7.7.7.7",
+    });
+    expect("poll" in c, `expected poll, got ${JSON.stringify(c)}`).toBe(true);
+    if (!("poll" in c)) return;
+    const poll = c.poll;
+    const opt = poll.options[0];
+    const ip = "10.0.0.99";
+    for (let i = 0; i < 10; i++) {
+      const r = await voteOnPoll({
+        poll_id: poll.id,
+        option_id: opt.id,
+        voter_cookie: `rate-vote-voter-${i}`,
+        ip,
+      });
+      expect("counts" in r, `expected vote ${i + 1} to succeed, got ${JSON.stringify(r)}`).toBe(true);
+    }
+    const limited = await voteOnPoll({
+      poll_id: poll.id,
+      option_id: opt.id,
+      voter_cookie: "rate-vote-voter-10",
+      ip,
+    });
+    expect(limited).toMatchObject({ status: 429, code: "RATE_LIMITED", retry_after: 86400 });
+  });
 });
