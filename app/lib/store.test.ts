@@ -348,4 +348,41 @@ describe("store — createPoll validation", () => {
     expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0, 0]);
     expect(fresh!.options.map((o) => o.label)).toEqual(["Alpha", "Beta", "Gamma"]);
   });
+
+  it("poll with 4 options (max) has positions 0,1,2,3 votes 0 and labels preserved", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const labels = ["Sneaker A", "Sneaker B", "Sneaker C", "Sneaker D"];
+    const res = await createPoll({
+      title: "4-opt max ordering test",
+      options: labels.map((label, i) => ({
+        label,
+        image_url: `https://picsum.photos/seed/max4-${i}/600/600`,
+      })),
+      creator_cookie: "max4-cid",
+      ip: "9.9.9.11",
+    });
+    expect("poll" in res, `expected poll, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    expect(res.poll.options).toHaveLength(4);
+    // positions 0,1,2,3 in input order, votes 0, labels preserved verbatim (trimmed)
+    res.poll.options.forEach((o, i) => {
+      expect(o.position).toBe(i);
+      expect(o.votes).toBe(0);
+      expect(o.label).toBe(labels[i]);
+    });
+    expect(res.poll.options.map((o) => o.position)).toEqual([0, 1, 2, 3]);
+    expect(res.poll.options.map((o) => o.label)).toEqual(labels);
+    expect(res.poll.options.map((o) => o.votes)).toEqual([0, 0, 0, 0]);
+    // persisted order via getPoll
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.options.map((o) => o.position)).toEqual([0, 1, 2, 3]);
+    expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0, 0, 0]);
+    expect(fresh!.options.map((o) => o.label)).toEqual(labels);
+    // ids are distinct and poll_id consistent
+    const ids = fresh!.options.map((o) => o.id);
+    expect(new Set(ids).size).toBe(4);
+    for (const o of fresh!.options) expect(o.poll_id).toBe(fresh!.id);
+  });
 });
