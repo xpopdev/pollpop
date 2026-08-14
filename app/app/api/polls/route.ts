@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     const options = Array.isArray(body.options) ? body.options.map((o: unknown) => {
       const obj = o as { label?: unknown; image_url?: unknown; imageUrl?: unknown };
       return {
-        label: String(obj.label || "").slice(0, 24),
+        label: String(obj.label || ""),
         image_url: String(obj.image_url || obj.imageUrl || ""),
       };
     }) : [];
@@ -39,7 +39,8 @@ export async function POST(req: NextRequest) {
     const origin = req.nextUrl.origin;
     return NextResponse.json({ id: poll.id, url: `${origin}/p/${poll.id}`, poll }, { status: 201 });
   } catch (e: unknown) {
-    return NextResponse.json({ error: (e as Error).message || "Create failed" }, { status: 500 });
+    console.error(e);
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 }
 

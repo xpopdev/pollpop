@@ -34,6 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     return NextResponse.json({ counts: res.counts, total: res.total }, { headers });
   } catch (e: unknown) {
-    return NextResponse.json({ error: (e as Error).message || "Vote failed" }, { status: 500 });
+    console.error(e);
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 }

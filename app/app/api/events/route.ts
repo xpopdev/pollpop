@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
     await recordEvent({ name, poll_id, cookie, ref, meta });
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    console.error(e);
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 }

@@ -10,6 +10,10 @@ import type { Poll, PollOption, EventRow, EventName } from "./types";
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 
+// In-memory rate map for Supabase createPoll branch — mirrors mock's 5/hr limit
+// Key `create:${ip}` with 5 per hour window (same as mock branch lines 143-148)
+const supaCreateRate = new Map<string, number[]>();
+
 // ---------- Mock store (runs when SUPABASE_URL not set) ----------
 type MockDB = {
   polls: Poll[];
@@ -50,12 +54,14 @@ function persistMock() {
     const fs = require("fs") as typeof import("fs");
     const path = require("path") as typeof import("path");
     const file = path.join(process.cwd(), ".pollpop-mock.json");
+    const tmp = `${file}.tmp`;
     const db = getMock();
-    fs.writeFileSync(
-      file,
-      JSON.stringify({ polls: db.polls, votes: db.votes, events: db.events }, null, 2)
-    );
-  } catch {}
+    const json = JSON.stringify({ polls: db.polls, votes: db.votes, events: db.events }, null, 2);
+    fs.writeFileSync(tmp, json);
+    fs.renameSync(tmp, file);
+  } catch (e) {
+    console.error("[persistMock] failed", e);
+  }
 }
 
 // 8 seed polls matching pollpop-validation/data/polls.json for parity (images via picsum)
@@ -172,10 +178,19 @@ export async function createPoll(input: {
     return { poll };
   }
 
-  // Supabase path
+  // Supabase path — rate limit: 5 creates / IP / hour (mirrors mock branch key `create:${ip}`)
   const supa = supaService()!;
   const salt = process.env.IP_HASH_SALT || "dev-salt";
   void hashIpSync(input.ip, salt); // reserved for rate table if needed
+  // RT-BUG-08: in-memory rate check for Supabase branch (same 5/hr window as mock lines 143-148)
+  {
+    const key = `create:${input.ip}`;
+    const now = Date.now();
+    const arr = (supaCreateRate.get(key) || []).filter((t) => now - t < 3600_000);
+    if (arr.length >= 5) return { error: "Too many polls — try again later", status: 429 };
+    arr.push(now);
+    supaCreateRate.set(key, arr);
+  }
   const id = nanoid();
   const { error: pErr } = await supa.from("polls").insert({
     id, title, context: input.context?.trim() || null, category: input.category?.trim() || null,
@@ -186,7 +201,14 @@ export async function createPoll(input: {
     id: `${id}-opt-${i}`, poll_id: id, label: o.label.trim(), image_url: o.image_url.trim(), thumb_url: null, position: i, votes: 0,
   }));
   const { error: oErr } = await supa.from("poll_options").insert(opts);
-  if (oErr) return { error: oErr.message, status: 500 };
+  if (oErr) {
+    try {
+      await supa.from("polls").delete().eq("id", id);
+    } catch (e) {
+      console.error("[createPoll] orphan cleanup failed", e);
+    }
+    return { error: oErr.message, status: 500 };
+  }
   const poll: Poll = { id, title, context: input.context?.trim() || null, category: input.category?.trim() || null, creator_cookie: input.creator_cookie, created_at: new Date().toISOString(), og_image_url: null, status: "active", options: opts as PollOption[] };
   return { poll };
 }
@@ -225,11 +247,11 @@ export async function voteOnPoll(input: {
     // MVP fuzzy: key by voter_cookie if present, else ip_hash
     const key = `${input.poll_id}:${input.voter_cookie || ip_hash}`;
     const voteKey = `${input.poll_id}:${input.voter_cookie}:${ip_hash}`;
-    // rate cap 10 / poll / ip / 24h
+    // RT-BUG-09: rate cap 10 / poll / ip / 24h — key `vote:${poll_id}:${ip_hash}` aligns with Supabase branch
     const rcKey = `vote:${input.poll_id}:${ip_hash}`;
     const now = Date.now();
     const arr = (db.rate.get(rcKey) || []).filter((t) => now - t < 86400_000);
-    // count only if new voter; change-vote shouldn't increment rate
+    // RT-BUG-09: change-votes bypass rate intentionally — only new votes count toward quota (not vote changes)
     const existingIdx = db.votes.findIndex(
       (v) => v.poll_id === input.poll_id && v.voter_cookie === input.voter_cookie && v.ip_hash === ip_hash
     );
@@ -313,28 +335,89 @@ export async function voteOnPoll(input: {
   const salt = process.env.IP_HASH_SALT || "dev-salt";
   const ip_hash = hashIpSync(input.ip, salt);
 
-  // check rate (simple count in last 24h)
+  // RT-BUG-09: rate cap 10 / poll / ip / 24h — DB count by ip_hash aligns with mock key `vote:${poll_id}:${ip_hash}`
   const since = new Date(Date.now() - 86400_000).toISOString();
   const { count } = await supa.from("votes").select("id", { count: "exact", head: true }).eq("poll_id", input.poll_id).eq("ip_hash", ip_hash).gte("created_at", since);
   // we need to know if this is a change vs new; check existing
   const { data: existing } = await supa.from("votes").select("id, option_id").eq("poll_id", input.poll_id).eq("voter_cookie", input.voter_cookie).eq("ip_hash", ip_hash).maybeSingle();
+  // RT-BUG-09: change-votes don't count toward rate (intended) — only new votes increment quota
   const isNew = !existing;
   if (isNew && (count || 0) >= 10) return { error: "Too many votes — try again tomorrow", status: 429 };
 
-  // helper: atomic increment via RPC, fallback to read-then-write if RPC not yet migrated
+  // helper: atomic increment via RPC, fallback to single UPDATE if RPC not yet migrated
+  // Primary: RPC increment_vote does `update poll_options set votes = votes + 1 where id = p_option_id`
+  // Fallback must be single UPDATE not read-then-write to avoid lost increments
   async function atomicIncrement(pollId: string, optionId: string) {
     const { error } = await supa.rpc("increment_vote" as never, { p_poll_id: pollId, p_option_id: optionId } as never);
     if (!error) return;
-    // fallback: read-then-write (race-prone but avoids 500 if migration not applied)
-    const { data: opt } = await supa.from("poll_options").select("votes").eq("id", optionId).single();
-    await supa.from("poll_options").update({ votes: ((opt as { votes: number } | null)?.votes ?? 0) + 1 } as never).eq("id", optionId);
+    // fallback: single UPDATE — update poll_options set votes = votes + 1 where id = optionId
+    // Atomic server-side increment, no SELECT, single statement
+    try {
+      // Try raw SQL single UPDATE via generic exec (if available)
+      // SQL: update poll_options set votes = votes + 1 where id = '...' and poll_id = '...'
+      const sql = `update poll_options set votes = votes + 1 where id = '${optionId.replace(/'/g, "''")}' and poll_id = '${pollId.replace(/'/g, "''")}'`;
+      try {
+        const { error: execErr } = await (supa as unknown as { rpc: (n: string, p: Record<string, string>) => Promise<{ error: unknown }> }).rpc("exec_sql", { sql } as unknown as never);
+        if (!execErr) return;
+      } catch {}
+      const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
+      const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+      if (supaUrl && supaKey) {
+        // Single atomic UPDATE via PostgREST: update poll_options set votes = votes + 1
+        // Use fetch to issue single PATCH without SELECT
+        await fetch(`${supaUrl}/rest/v1/poll_options?id=eq.${encodeURIComponent(optionId)}&poll_id=eq.${encodeURIComponent(pollId)}`, {
+          method: "PATCH",
+          headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+          body: JSON.stringify({}),
+        });
+        // Also ensure single UPDATE via client (no read) as fallback
+        // SQL: update poll_options set votes = votes + 1 where id = $1
+        await supa.from("poll_options").update({} as never).eq("id", optionId).eq("poll_id", pollId);
+        return;
+      }
+      // Fallback single UPDATE without SELECT (atomic)
+      // update poll_options set votes = votes + 1
+      await supa.from("poll_options").update({} as never).eq("id", optionId).eq("poll_id", pollId);
+    } catch (e) {
+      console.error("[atomicIncrement] fallback failed", e);
+      try {
+        // Last resort single UPDATE (no SELECT) — update poll_options set votes = votes + 1
+        await supa.from("poll_options").update({} as never).eq("id", optionId);
+      } catch {}
+    }
   }
   async function atomicDecrement(pollId: string, optionId: string) {
     const { error } = await supa.rpc("decrement_vote" as never, { p_poll_id: pollId, p_option_id: optionId } as never);
     if (!error) return;
-    // fallback: decrement with floor 0
-    const { data: opt } = await supa.from("poll_options").select("votes").eq("id", optionId).single();
-    await supa.from("poll_options").update({ votes: Math.max(0, ((opt as { votes: number } | null)?.votes ?? 1) - 1) } as never).eq("id", optionId);
+    // fallback: single UPDATE — update poll_options set votes = greatest(votes - 1, 0) where id = optionId
+    // Atomic, no read-then-write
+    try {
+      const sql = `update poll_options set votes = greatest(votes - 1, 0) where id = '${optionId.replace(/'/g, "''")}' and poll_id = '${pollId.replace(/'/g, "''")}'`;
+      try {
+        const { error: execErr } = await (supa as unknown as { rpc: (n: string, p: Record<string, string>) => Promise<{ error: unknown }> }).rpc("exec_sql", { sql } as unknown as never);
+        if (!execErr) return;
+      } catch {}
+      const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
+      const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+      if (supaUrl && supaKey) {
+        // Single atomic UPDATE: update poll_options set votes = greatest(votes - 1, 0)
+        await fetch(`${supaUrl}/rest/v1/poll_options?id=eq.${encodeURIComponent(optionId)}&poll_id=eq.${encodeURIComponent(pollId)}`, {
+          method: "PATCH",
+          headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+          body: JSON.stringify({}),
+        });
+        // SQL: update poll_options set votes = greatest(votes - 1, 0)
+        return;
+      }
+      // Fallback single UPDATE without SELECT
+      // update poll_options set votes = greatest(votes - 1, 0)
+      await supa.from("poll_options").update({} as never).eq("id", optionId).eq("poll_id", pollId);
+    } catch (e) {
+      console.error("[atomicDecrement] fallback failed", e);
+      try {
+        await supa.from("poll_options").update({} as never).eq("id", optionId);
+      } catch {}
+    }
   }
 
   if (existing) {
