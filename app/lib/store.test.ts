@@ -679,4 +679,58 @@ describe("store — createPoll validation", () => {
     expect(fresh!.options).toHaveLength(2);
     for (const o of fresh!.options) expect(o.poll_id).toBe(p.id);
   });
+
+  it("allows minimal poll with null creator_cookie and null context/category (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    // minimal poll: only required fields — title + 2 valid options, null creator_cookie,
+    // no context/category (undefined) → should succeed and persist as nulls
+    const res = await createPoll({
+      title: "Minimal poll — null cookie/context/category",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/minimal-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/minimal-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "15.15.15.15",
+    });
+    expect("poll" in res, `expected poll for minimal null fields, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    const p = res.poll;
+    expect(p.options).toHaveLength(2);
+    expect(p.title).toBe("Minimal poll — null cookie/context/category");
+    // null creator_cookie is allowed — not coerced to empty string
+    expect(p.creator_cookie).toBeNull();
+    // omitted context/category collapse to null (store trims or nulls)
+    expect(p.context).toBeNull();
+    expect(p.category).toBeNull();
+    expect(p.status).toBe("active");
+    expect(p.og_image_url).toBeNull();
+    expect(typeof p.created_at).toBe("string");
+    // persisted nulls via getPoll
+    const fresh = await getPoll(p.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.creator_cookie).toBeNull();
+    expect(fresh!.context).toBeNull();
+    expect(fresh!.category).toBeNull();
+    expect(fresh!.title).toBe(p.title);
+    expect(fresh!.options).toHaveLength(2);
+    // also verify explicit undefined/null context/category pass — same IP offset to avoid rate coupling
+    const res2 = await createPoll({
+      title: "Minimal explicit nulls",
+      context: undefined,
+      category: undefined,
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/minimal2-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/minimal2-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "15.15.15.16",
+    });
+    expect("poll" in res2, `expected poll for explicit undefined context/category, got ${JSON.stringify(res2)}`).toBe(true);
+    if (!("poll" in res2)) return;
+    expect(res2.poll.context).toBeNull();
+    expect(res2.poll.category).toBeNull();
+    expect(res2.poll.creator_cookie).toBeNull();
+  });
 });
