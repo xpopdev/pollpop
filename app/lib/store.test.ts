@@ -516,4 +516,71 @@ describe("store — createPoll validation", () => {
     expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0]);
     expect(fresh!.options.map((o) => o.position)).toEqual([0, 1]);
   });
+
+  it("rejects empty image_url — Each option needs an image (label ok but image empty 400)", async () => {
+    resetMock();
+    const { createPoll } = await import("./store");
+    const goodB = { label: "B", image_url: "https://picsum.photos/seed/empty-img-b/600/600" };
+    const goodA = { label: "A", image_url: "https://picsum.photos/seed/empty-img-a/600/600" };
+
+    // first option empty string — label valid, image blank → 400
+    const r1 = await createPoll({
+      title: "empty image test",
+      options: [
+        { label: "A", image_url: "" },
+        goodB,
+      ],
+      creator_cookie: null,
+      ip: "12.12.12.1",
+    });
+    expect(r1).toMatchObject({ status: 400 });
+    if ("error" in (r1 as { error: string; status: number })) {
+      expect((r1 as { error: string }).error).toMatch(/Each option needs an image/i);
+    }
+
+    // whitespace only → 400
+    const r2 = await createPoll({
+      title: "empty image whitespace",
+      options: [
+        goodA,
+        { label: "B", image_url: "   " },
+      ],
+      creator_cookie: null,
+      ip: "12.12.12.2",
+    });
+    expect(r2).toMatchObject({ status: 400 });
+    if ("error" in (r2 as { error: string; status: number })) {
+      expect((r2 as { error: string }).error).toMatch(/Each option needs an image/i);
+    }
+
+    // second option empty in 3-opt — also 400
+    const r3 = await createPoll({
+      title: "empty image 3-opt",
+      options: [
+        goodA,
+        { label: "B", image_url: "" },
+        { label: "C", image_url: "https://picsum.photos/seed/empty-img-c/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "12.12.12.3",
+    });
+    expect(r3).toMatchObject({ status: 400 });
+    if ("error" in (r3 as { error: string; status: number })) {
+      expect((r3 as { error: string }).error).toMatch(/Each option needs an image/i);
+    }
+
+    // valid after rejects — same IPs fresh but not rate-limited, should succeed
+    const ok = await createPoll({
+      title: "empty image guard ok",
+      options: [goodA, goodB],
+      creator_cookie: null,
+      ip: "12.12.12.4",
+    });
+    expect("poll" in ok, `expected poll after empty-image rejects, got ${JSON.stringify(ok)}`).toBe(true);
+    if ("poll" in ok) {
+      expect(ok.poll.options).toHaveLength(2);
+      expect(ok.poll.options[0].image_url).toBe(goodA.image_url);
+      expect(ok.poll.options[1].image_url).toBe(goodB.image_url);
+    }
+  });
 });
