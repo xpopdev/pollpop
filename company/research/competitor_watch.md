@@ -1,21 +1,11 @@
 # Competitor watch
+> WebFetch down — all INFERRED, last checked 2026-08-14, re-verify when fetch recovers per §25.
 
-> Ongoing monitoring of competitor changes after a product direction is chosen (master
-> protocol §25). Distinct from the one-time competitor profiles in `research/competitors/` —
-> this file tracks *changes over time*.
-
-## Format for each entry
-
-```
-### <date> — <competitor>
-Change:
-Impact:
-Threat level (low / medium / high):
-Opportunity:
-Response:
-```
-
----
-
-(No product direction chosen yet, so nothing to watch. Populate this once a competitor set is
-identified in `research/competitors/`.)
+|Competitor|Change|Impact|Threat Level|Opportunity|Response|
+|---|---|---|---|---|---|
+|CapCut|No change detected — INFERRED pricing, last checked 2026-08-14, re-verify when fetch recovers|None|Low|Monitor|Re-verify|
+|Runway|No change detected — INFERRED pricing, last checked 2026-08-14, re-verify when fetch recovers|None|Low|Monitor|Re-verify|
+|Sora|No change detected — INFERRED pricing, last checked 2026-08-14, re-verify when fetch recovers|None|Low|Monitor|Re-verify|
+|Quizlet|No change detected — INFERRED pricing, last checked 2026-08-14, re-verify when fetch recovers|None|Low|Monitor|Re-verify|
+|Instagram polls|No change detected — INFERRED pricing, last checked 2026-08-14, re-verify when fetch recovers|None|Low|Monitor|Re-verify|
+|Strawpoll|No change detected — INFERRED pricing, last checked 2026-08-14, re-verify when fetch recovers|None|Low|Monitor|Re-verify|
