@@ -1132,4 +1132,104 @@ describe("store — createPoll validation", () => {
     expect(fresh!.options).toHaveLength(2);
     expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0]);
   });
+
+  it("votes are isolated between polls: poll A votes do not affect poll B (2-option polls, mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, voteOnPoll, getPoll } = await import("./store");
+
+    // two independent 2-option polls — distinct IPs to avoid create-rate coupling
+    const resA = await createPoll({
+      title: "Which outfit? — A",
+      options: [
+        { label: "Outfit A", image_url: "https://picsum.photos/seed/iso-A1/600/600" },
+        { label: "Outfit B", image_url: "https://picsum.photos/seed/iso-A2/600/600" },
+      ],
+      creator_cookie: "iso-creator-A",
+      ip: "21.21.21.1",
+    });
+    const resB = await createPoll({
+      title: "Which snack? — B",
+      options: [
+        { label: "Snack A", image_url: "https://picsum.photos/seed/iso-B1/600/600" },
+        { label: "Snack B", image_url: "https://picsum.photos/seed/iso-B2/600/600" },
+      ],
+      creator_cookie: "iso-creator-B",
+      ip: "21.21.21.2",
+    });
+    expect("poll" in resA, `expected poll A, got ${JSON.stringify(resA)}`).toBe(true);
+    expect("poll" in resB, `expected poll B, got ${JSON.stringify(resB)}`).toBe(true);
+    if (!("poll" in resA) || !("poll" in resB)) return;
+
+    const pollA = resA.poll;
+    const pollB = resB.poll;
+
+    // distinct poll ids, each exactly 2 options, votes 0, positions 0,1
+    expect(pollA.id).not.toBe(pollB.id);
+    expect(pollA.options).toHaveLength(2);
+    expect(pollB.options).toHaveLength(2);
+    expect(pollA.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(pollB.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(pollA.options.map((o) => o.position)).toEqual([0, 1]);
+    expect(pollB.options.map((o) => o.position)).toEqual([0, 1]);
+    // option ids must be distinct across polls (no cross-poll id collision)
+    const allIds = [...pollA.options.map((o) => o.id), ...pollB.options.map((o) => o.id)];
+    expect(new Set(allIds).size).toBe(4);
+    for (const o of pollA.options) expect(o.poll_id).toBe(pollA.id);
+    for (const o of pollB.options) expect(o.poll_id).toBe(pollB.id);
+
+    const [optA0, optA1] = pollA.options;
+    const [optB0, optB1] = pollB.options;
+
+    // same voter can vote on both polls independently — isolation per poll_id, not per voter globally
+    const sharedVoter = "isol-shared-voter-1";
+    const sharedIp = "21.21.21.10";
+
+    // vote on poll A — poll B must remain 0/0
+    const rA1 = await voteOnPoll({ poll_id: pollA.id, option_id: optA0.id, voter_cookie: sharedVoter, ip: sharedIp });
+    expect("counts" in rA1, `expected vote A1 to succeed, got ${JSON.stringify(rA1)}`).toBe(true);
+    if (!("counts" in rA1)) return;
+    expect(rA1.total).toBe(1);
+    expect(rA1.counts[optA0.id]).toBe(1);
+    expect(rA1.counts[optA1.id]).toBe(0);
+    // B untouched after A vote — verify via getPoll and via counts not leaking
+    const freshB0 = await getPoll(pollB.id);
+    expect(freshB0).not.toBeNull();
+    expect(freshB0!.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(rA1.counts[optB0.id]).toBeUndefined();
+    expect(rA1.counts[optB1.id]).toBeUndefined();
+
+    // same voter votes on poll B different option — poll A must remain 1/0
+    const rB1 = await voteOnPoll({ poll_id: pollB.id, option_id: optB1.id, voter_cookie: sharedVoter, ip: sharedIp });
+    expect("counts" in rB1, `expected vote B1 to succeed, got ${JSON.stringify(rB1)}`).toBe(true);
+    if (!("counts" in rB1)) return;
+    expect(rB1.total).toBe(1);
+    expect(rB1.counts[optB0.id]).toBe(0);
+    expect(rB1.counts[optB1.id]).toBe(1);
+    expect(rB1.counts[optA0.id]).toBeUndefined();
+    expect(rB1.counts[optA1.id]).toBeUndefined();
+    const freshA1 = await getPoll(pollA.id);
+    expect(freshA1).not.toBeNull();
+    expect(freshA1!.options.find((o) => o.id === optA0.id)?.votes).toBe(1);
+    expect(freshA1!.options.find((o) => o.id === optA1.id)?.votes).toBe(0);
+
+    // second distinct voter votes on poll A — B must still be 1 total, not incremented
+    const rA2 = await voteOnPoll({ poll_id: pollA.id, option_id: optA0.id, voter_cookie: "isol-voter-A2", ip: "21.21.21.11" });
+    expect("counts" in rA2, `expected vote A2 to succeed, got ${JSON.stringify(rA2)}`).toBe(true);
+    if (!("counts" in rA2)) return;
+    expect(rA2.total).toBe(2);
+    expect(rA2.counts[optA0.id]).toBe(2);
+    expect(rA2.counts[optA1.id]).toBe(0);
+
+    const freshA2 = await getPoll(pollA.id);
+    const freshB2 = await getPoll(pollB.id);
+    expect(freshA2).not.toBeNull();
+    expect(freshB2).not.toBeNull();
+    // final isolation check: A has 2 votes, B has 1 — no cross-poll tally leak
+    expect(freshA2!.options.find((o) => o.id === optA0.id)?.votes).toBe(2);
+    expect(freshA2!.options.find((o) => o.id === optA1.id)?.votes).toBe(0);
+    expect(freshA2!.options.reduce((a, o) => a + o.votes, 0)).toBe(2);
+    expect(freshB2!.options.find((o) => o.id === optB0.id)?.votes).toBe(0);
+    expect(freshB2!.options.find((o) => o.id === optB1.id)?.votes).toBe(1);
+    expect(freshB2!.options.reduce((a, o) => a + o.votes, 0)).toBe(1);
+  });
 });
