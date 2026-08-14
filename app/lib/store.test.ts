@@ -1407,4 +1407,91 @@ describe("store — createPoll validation", () => {
     expect(fresh!.options.map((o) => o.label)).toEqual(["A", "B"]);
     for (const o of fresh!.options) expect(o.poll_id).toBe(fresh!.id);
   });
+
+  it("thumb_url is null initially and can be set via update (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const res = await createPoll({
+      title: "Thumb null initially",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/thumb-init-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/thumb-init-b/600/600" },
+      ],
+      creator_cookie: "thumb-cid",
+      ip: "26.26.26.1",
+    });
+    expect("poll" in res, `expected poll, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    const poll = res.poll;
+    expect(poll.options).toHaveLength(2);
+    // thumb_url is null initially on create response (type is string | null, not undefined)
+    for (const o of poll.options) {
+      expect(o.thumb_url).toBeNull();
+      expect(o.thumb_url).not.toBeUndefined();
+      expect(typeof o.thumb_url).not.toBe("string");
+    }
+    expect(poll.options[0].thumb_url).toBeNull();
+    expect(poll.options[1].thumb_url).toBeNull();
+    // persisted via getPoll — still null, votes 0, image_url unchanged
+    const fresh = await getPoll(poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.options.map((o) => o.thumb_url)).toEqual([null, null]);
+    for (const o of fresh!.options) expect(o.thumb_url).toBeNull();
+    expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(fresh!.options[0].image_url).toBe("https://picsum.photos/seed/thumb-init-a/600/600");
+    expect(fresh!.options[1].image_url).toBe("https://picsum.photos/seed/thumb-init-b/600/600");
+
+    // --- simulate update: set thumb_url on first option (mock mode file-based) ---
+    // The mock store is in-memory via globalThis.__pollpop_mock; direct mutation is the
+    // file-based "update" path (no Supabase needed). This proves the field is mutable
+    // and persists via getPoll without affecting other fields.
+    const mockDb = (globalThis as unknown as { __pollpop_mock?: { polls: import("./types").Poll[] } }).__pollpop_mock;
+    expect(mockDb).toBeDefined();
+    const stored = mockDb!.polls.find((p) => p.id === poll.id);
+    expect(stored).toBeDefined();
+    const thumbA = "https://picsum.photos/seed/thumb-updated-a/200/200";
+    stored!.options[0].thumb_url = thumbA;
+    const afterA = await getPoll(poll.id);
+    expect(afterA).not.toBeNull();
+    expect(afterA!.options[0].thumb_url).toBe(thumbA);
+    expect(afterA!.options[1].thumb_url).toBeNull();
+    // image_url, votes, position, label unchanged after thumb update
+    expect(afterA!.options[0].image_url).toBe("https://picsum.photos/seed/thumb-init-a/600/600");
+    expect(afterA!.options[0].votes).toBe(0);
+    expect(afterA!.options[0].position).toBe(0);
+    expect(afterA!.options[0].label).toBe("A");
+    expect(afterA!.options[1].image_url).toBe("https://picsum.photos/seed/thumb-init-b/600/600");
+
+    // set thumb on second option too — both persist independently
+    const thumbB = "https://picsum.photos/seed/thumb-updated-b/200/200";
+    stored!.options[1].thumb_url = thumbB;
+    const afterBoth = await getPoll(poll.id);
+    expect(afterBoth!.options.map((o) => o.thumb_url)).toEqual([thumbA, thumbB]);
+
+    // clear first thumb back to null — nullable field allows reset
+    stored!.options[0].thumb_url = null;
+    const afterClear = await getPoll(poll.id);
+    expect(afterClear!.options[0].thumb_url).toBeNull();
+    expect(afterClear!.options[1].thumb_url).toBe(thumbB);
+
+    // isolation: other poll's thumb_url stays null after updates to first poll
+    const res2 = await createPoll({
+      title: "Second poll thumb isolation",
+      options: [
+        { label: "X", image_url: "https://picsum.photos/seed/thumb-iso-x/600/600" },
+        { label: "Y", image_url: "https://picsum.photos/seed/thumb-iso-y/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "26.26.26.2",
+    });
+    expect("poll" in res2, `expected second poll, got ${JSON.stringify(res2)}`).toBe(true);
+    if (!("poll" in res2)) return;
+    expect(res2.poll.options.map((o) => o.thumb_url)).toEqual([null, null]);
+    const fresh2 = await getPoll(res2.poll.id);
+    expect(fresh2!.options.map((o) => o.thumb_url)).toEqual([null, null]);
+    // first poll still has its updated thumb after second poll creation
+    const refetch1 = await getPoll(poll.id);
+    expect(refetch1!.options[0].thumb_url).toBeNull();
+    expect(refetch1!.options[1].thumb_url).toBe(thumbB);
+  });
 });
