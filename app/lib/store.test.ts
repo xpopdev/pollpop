@@ -481,4 +481,39 @@ describe("store — createPoll validation", () => {
     const r3 = await createPoll({ title: "fuck this fit", options: good2, creator_cookie: null, ip: "10.10.10.4" });
     expect(r3).toMatchObject({ status: 400 });
   });
+
+  it("initial state for 2-option poll: status active, created_at ISO string, og_image_url null", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const res = await createPoll({
+      title: "Which one?",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/init-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/init-b/600/600" },
+      ],
+      creator_cookie: "init-cid",
+      ip: "11.11.11.11",
+    });
+    expect("poll" in res, `expected poll, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    const p = res.poll;
+    expect(p.options).toHaveLength(2);
+    expect(p.status).toBe("active");
+    expect(p.og_image_url).toBeNull();
+    // created_at must be ISO 8601 string — deterministic, mock path
+    expect(typeof p.created_at).toBe("string");
+    expect(Date.parse(p.created_at)).not.toBeNaN();
+    expect(new Date(p.created_at).toISOString()).toBe(p.created_at);
+    expect(p.created_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    // persisted state matches via getPoll
+    const fresh = await getPoll(p.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.status).toBe("active");
+    expect(fresh!.og_image_url).toBeNull();
+    expect(fresh!.created_at).toBe(p.created_at);
+    expect(new Date(fresh!.created_at).toISOString()).toBe(fresh!.created_at);
+    // each option votes start at 0, positions 0/1
+    expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(fresh!.options.map((o) => o.position)).toEqual([0, 1]);
+  });
 });
