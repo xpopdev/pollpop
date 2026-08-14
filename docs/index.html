@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PollPop — Visual polls that beg for a vote</title>
+<meta name="description" content="Beautiful visual polls in 15 seconds. Vote, see live results, create your own. The group-chat decision settler.">
+<meta property="og:title" content="PollPop — Visual polls that beg for a vote">
+<meta property="og:description" content="Beautiful 2–4 image polls. Tap to vote, see live results, create your own in 15s.">
+<meta property="og:image" content="https://picsum.photos/seed/pollpop-hero/1200/630">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark">P</span> PollPop <small>validation</small></a>
+    <div class="nav-links">
+      <a class="pill" href="metrics.html">Metrics</a>
+      <a class="pill primary" href="create.html">Create poll →</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-top">
+    <div>
+      <span class="eyebrow"><span class="dot"></span> Live validation — 8 polls · fake-door CTA tracking</span>
+      <h1>Decide with a <em>tap</em>,<br>not a thread.</h1>
+      <p>Beautiful visual polls for group chats. No sign-up to vote. See live results instantly. The only poll link that turns voters into creators.</p>
+      <div class="stats-row" id="hero-stats">
+        <span class="stat"><b id="stat-polls">8</b> <span>live polls</span></span>
+        <span class="stat"><b id="stat-votes">—</b> <span>votes cast</span></span>
+        <span class="stat"><b>15s</b> <span>to create</span></span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="filter-bar" id="filter-bar">
+  <button class="chip active" data-filter="all">All polls</button>
+  <button class="chip" data-filter="Style">Style</button>
+  <button class="chip" data-filter="Food">Food</button>
+  <button class="chip" data-filter="Design">Design</button>
+  <button class="chip" data-filter="Creator">Creator</button>
+  <button class="chip" data-filter="Interiors">Interiors</button>
+  <button class="chip" data-filter="Music">Music</button>
+  <button class="chip" data-filter="Travel">Travel</button>
+</div>
+
+<main class="grid" id="poll-grid" aria-live="polite">
+  <!-- injected by JS -->
+</main>
+
+<footer class="footer">
+  <span>PollPop validation build · static + localStorage · <a href="metrics.html">Metrics →</a></span>
+  <span>picsum.photos placeholders · <a href="#" id="reset-demo">Reset my demo data</a></span>
+</footer>
+
+<script src="js/analytics.js"></script>
+<script src="js/app.js"></script>
+<script>
+(async function(){
+  const polls = await fetchPolls();
+  const tallies = PollPopAnalytics.getTallies();
+  const grid = document.getElementById('poll-grid');
+
+  // hero votes total
+  function totalAll(){
+    let s=0;
+    for(const p of polls) s += totalVotes(p, tallies);
+    return s;
+  }
+  function totalVotes(p, tallies){
+    const t = tallies && tallies[p.id] ? tallies[p.id] : p.votes;
+    return Object.values(t).reduce((a,b)=>a+b,0);
+  }
+  document.getElementById('stat-votes').textContent = totalAll().toLocaleString();
+
+  function render(filter='all'){
+    grid.innerHTML='';
+    const filtered = filter==='all' ? polls : polls.filter(p=>p.category===filter);
+    for(const poll of filtered){
+      const tot = totalVotes(poll, tallies);
+      const thumb = poll.options[0].image;
+      const thumb2 = poll.options[1] ? poll.options[1].image : thumb;
+      const el = document.createElement('article');
+      el.className='card';
+      el.innerHTML = `
+        <div class="card-media">
+          <img loading="lazy" src="${thumb}" alt="${escapeHtml(poll.title)}" onerror="this.src='${thumb2}'">
+          <span class="live"><i></i> Live</span>
+          <div class="media-overlay"><span class="media-badge">${escapeHtml(poll.category)} · ${poll.options.length} options</span></div>
+        </div>
+        <div class="card-body">
+          <h2 class="card-title">${escapeHtml(poll.title)}</h2>
+          <p class="card-desc">${escapeHtml(poll.description)}</p>
+          <div class="card-meta">
+            <span class="meta-left"><span class="avatar">${poll.creator.trim()[0]}</span> ${escapeHtml(poll.creator)} · ${tot} votes</span>
+            <span class="votes">${tot} <span>votes</span></span>
+          </div>
+          <a class="open-btn" href="poll.html?id=${encodeURIComponent(poll.id)}">Vote now →</a>
+        </div>
+      `;
+      grid.appendChild(el);
+    }
+    if(filtered.length===0){
+      grid.innerHTML = '<p style="grid-column:span 12;text-align:center;color:var(--muted);padding:30px">No polls in this category.</p>';
+    }
+  }
+
+  function escapeHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  render('all');
+
+  document.getElementById('filter-bar').addEventListener('click', (e)=>{
+    const btn = e.target.closest('.chip');
+    if(!btn) return;
+    document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+    btn.classList.add('active');
+    render(btn.dataset.filter);
+  });
+
+  document.getElementById('reset-demo').addEventListener('click', (e)=>{
+    e.preventDefault();
+    if(!confirm('Reset all local votes + analytics for this browser?')) return;
+    localStorage.removeItem('pollpop_events');
+    localStorage.removeItem('pollpop_tallies');
+    localStorage.removeItem('pollpop_voted');
+    location.reload();
+  });
+
+  // track a lightweight index view (not counted as poll_view — that’s per poll)
+  PollPopAnalytics.track('index_view', { timestamp: new Date().toISOString() });
+})();
+</script>
+</body>
+</html>

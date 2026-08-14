@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PollPop — Vote</title>
+<meta name="description" content="Tap to vote, see live results instantly.">
+<meta property="og:title" content="PollPop — Visual poll">
+<meta property="og:description" content="Tap to vote — see live results instantly.">
+<meta property="og:image" content="https://picsum.photos/seed/pollpop-hero/1200/630">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark">P</span> PollPop <small>validation</small></a>
+    <div class="nav-links">
+      <a class="pill" href="index.html">All polls</a>
+      <a class="pill" href="metrics.html">Metrics</a>
+    </div>
+  </div>
+</nav>
+
+<div class="poll-wrap" id="poll-wrap">
+  <div class="breadcrumb"><a href="index.html">← All polls</a> <span id="crumb-cat"></span></div>
+  <div id="mount">Loading poll…</div>
+</div>
+
+<footer class="footer" style="max-width:720px">
+  <span><a href="index.html">← Back to polls</a> · <a href="metrics.html">Metrics</a></span>
+  <span>Shareable link copies with OG preview</span>
+</footer>
+
+<script src="js/analytics.js"></script>
+<script src="js/app.js"></script>
+<script>
+(async function(){
+  const mount = document.getElementById('mount');
+  const params = new URLSearchParams(window.location.search);
+  let pollId = params.get('id') || params.get('poll');
+
+  let polls;
+  try{
+    polls = await fetchPollsRobust();
+  }catch(e){
+    mount.innerHTML = `<div class="poll-header"><h1>Failed to load polls</h1><p>${e.message}. Try <code>python -m http.server</code> from pollpop-validation/.</p></div>`;
+    return;
+  }
+
+  // default to first poll if no id
+  if(!pollId) pollId = polls[0].id;
+  const poll = polls.find(p=>p.id===pollId) || polls[0];
+  if(!poll){
+    mount.innerHTML = `<div class="poll-header"><h1>Poll not found</h1><p><a href="index.html">Back to all polls →</a></p></div>`;
+    return;
+  }
+
+  // update OG/meta for JS clients + share preview hint (crawlers use /p/{id}.html)
+  document.title = `${poll.title} — PollPop`;
+  document.querySelector('meta[property="og:title"]').setAttribute('content', poll.title);
+  document.querySelector('meta[property="og:description"]').setAttribute('content', poll.description);
+  document.querySelector('meta[property="og:image"]').setAttribute('content', poll.ogImage || poll.options[0].image);
+  document.querySelector('meta[name="description"]').setAttribute('content', poll.description);
+  document.getElementById('crumb-cat').textContent = `· ${poll.category}`;
+
+  // analytics: poll_view
+  PollPopAnalytics.track('poll_view', { poll_id: poll.id });
+
+  // tallies: merge localStorage with defaults
+  let tallies = PollPopAnalytics.getTallies();
+  if(!tallies){
+    tallies = {};
+    for(const p of polls) tallies[p.id] = {...p.votes};
+    PollPopAnalytics.saveTallies(tallies);
+  }
+  if(!tallies[poll.id]) tallies[poll.id] = {...poll.votes};
+
+  const votedMap = PollPopAnalytics.getVotedMap();
+  const alreadyVotedOption = votedMap[poll.id] || null;
+  let selected = alreadyVotedOption; // pre-select if already voted
+  let hasVoted = !!alreadyVotedOption;
+
+  function totalForPoll(){ return Object.values(tallies[poll.id]).reduce((a,b)=>a+b,0); }
+
+  function render(){
+    const total = totalForPoll();
+    const voted = hasVoted;
+    // build option cards
+    const colsClass = poll.options.length===2 ? 'cols-2' : poll.options.length===3 ? 'cols-3' : 'cols-4';
+
+    let html = `
+      <div class="poll-header">
+        <div class="poll-kicker">
+          <span class="tag">${escapeHtml(poll.category)}</span>
+          <span class="tag">${poll.options.length} options · ${total} votes</span>
+          <span class="tag" style="background:#fef2f2;border-color:#fecaca;color:#dc2626">● Live</span>
+        </div>
+        <h1>${escapeHtml(poll.question)}</h1>
+        <p>${escapeHtml(poll.description)}</p>
+        <div class="poll-creator">
+          <span class="avatar">${poll.creator.trim()[0]}</span>
+          <span><b>${escapeHtml(poll.creator)}</b> · share link has OG preview · votes update live</span>
+        </div>
+      </div>
+    `;
+
+    html += `<div class="poll-options ${colsClass}" id="options">`;
+    for(const opt of poll.options){
+      const isSelected = selected===opt.id;
+      const isVotedChoice = voted && selected===opt.id;
+      html += `
+        <div class="option ${isSelected?'selected':''} ${voted?'voted':''}" data-opt="${opt.id}" role="button" tabindex="0" aria-label="Vote for ${escapeHtml(opt.label)}">
+          <div class="option-media">
+            <img loading="lazy" src="${opt.image}" alt="${escapeHtml(opt.label)}" onerror="this.style.background='#eee'">
+            ${isVotedChoice?'<span style="position:absolute;top:10px;right:10px;background:var(--ink);color:white;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:800">Your vote ✓</span>':''}
+          </div>
+          <div class="option-label">
+            <b>${escapeHtml(opt.label)}</b>
+            <span class="check">${isSelected?'✓':''}</span>
+          </div>
+          ${!voted ? `<button class="vote-btn" data-vote="${opt.id}" ${isSelected?'':'disabled'}>${isSelected?'Vote for this →':'Select to vote'}</button>` : ``}
+        </div>
+      `;
+    }
+    html += `</div>`;
+
+    if(!voted){
+      html += `<p style="margin-top:12px;color:var(--muted);font-size:12px;font-weight:600;text-align:center">Tap an image to select, then vote. No sign-up. Results are live.</p>`;
+    }
+
+    if(voted){
+      // results
+      // compute percentages
+      const maxVotes = Math.max(...Object.values(tallies[poll.id]));
+      html += `
+        <div class="results" id="results">
+          <div class="results-head">
+            <h3>● Live results · ${total} votes</h3>
+            <p>You voted · updates live</p>
+          </div>
+          <div class="bar-list">
+      `;
+      // sort by votes desc for display
+      const sorted = [...poll.options].sort((a,b)=> (tallies[poll.id][b.id]||0) - (tallies[poll.id][a.id]||0));
+      for(const opt of sorted){
+        const v = tallies[poll.id][opt.id]||0;
+        const pct = total? Math.round(v/total*100):0;
+        const isWinner = v===maxVotes && total>0;
+        html += `
+          <div class="bar-row ${isWinner?'winner':''}">
+            <div class="bar-top">
+              <b>${isWinner?'<span class="crown">👑</span> ':''}${escapeHtml(opt.label)} ${selected===opt.id?'<span style="background:var(--ink);color:white;padding:2px 7px;border-radius:999px;font-size:10px;vertical-align:middle">YOU</span>':''}</b>
+              <span>${v} votes · ${pct}%</span>
+            </div>
+            <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+          </div>
+        `;
+      }
+      html += `</div>
+          <div class="share-row">
+            <span class="hint">Share this poll — link has OG preview (WhatsApp / iMessage / Discord)</span>
+            <button class="btn primary" id="btn-copy">Copy link</button>
+            <button class="btn" id="btn-share">Share…</button>
+            <button class="btn ghost" id="btn-native-share" style="display:none">System share</button>
+            <span id="copy-ok" style="font-size:12px;color:var(--success);font-weight:800;display:none">Copied ✓</span>
+          </div>
+        </div>
+      `;
+
+      // PRIMARY CTA — this is the metric
+      html += `
+        <div class="cta-card" id="cta-card">
+          <span class="cta-badge">✦ Voters are becoming creators</span>
+          <h3>Make your own poll in 15 seconds →</h3>
+          <p>Got a question only your friends can settle? Same beautiful format, instant share link, live results. No sign-up.</p>
+          <div class="cta-actions">
+            <a class="cta-primary" id="cta-primary" href="create.html?from=${encodeURIComponent(poll.id)}">Create your own poll — 15s →</a>
+            <a class="cta-secondary" href="create.html?from=${encodeURIComponent(poll.id)}">Pick a template</a>
+          </div>
+          <div class="micro">Takes 15s · Free · Link has OG preview · “You’re #N in line” concierge after →</div>
+        </div>
+      `;
+    }
+
+    mount.innerHTML = html;
+
+    // wire interactions
+    if(!voted){
+      const opts = mount.querySelectorAll('.option');
+      opts.forEach(el=>{
+        el.addEventListener('click', ()=>{
+          const id = el.dataset.opt;
+          if(!id) return;
+          selected = id;
+          render();
+        });
+        el.addEventListener('keydown', (e)=>{
+          if(e.key==='Enter' || e.key===' '){ e.preventDefault(); el.click(); }
+        });
+      });
+      mount.querySelectorAll('[data-vote]').forEach(btn=>{
+        btn.addEventListener('click', (e)=>{
+          e.stopPropagation();
+          const optId = btn.dataset.vote;
+          if(!optId || !selected) return;
+          // increment tally
+          tallies[poll.id][optId] = (tallies[poll.id][optId]||0)+1;
+          PollPopAnalytics.saveTallies(tallies);
+          PollPopAnalytics.setVoted(poll.id, optId);
+          // analytics: vote + cta_view (results shown)
+          PollPopAnalytics.track('vote', { poll_id: poll.id, option: optId });
+          // will render results next, after render we track cta_view
+          hasVoted = true;
+          selected = optId;
+          render();
+          // track cta_view once results are visible
+          PollPopAnalytics.track('cta_view', { poll_id: poll.id });
+          // smooth scroll to results
+          setTimeout(()=>{
+            document.getElementById('results')?.scrollIntoView({behavior:'smooth', block:'start'});
+          }, 120);
+        });
+      });
+    } else {
+      // results interactions
+      const shareUrl = PollPop.shareUrlFor(poll);
+      const btnCopy = document.getElementById('btn-copy');
+      const btnShare = document.getElementById('btn-share');
+      if(btnCopy){
+        btnCopy.addEventListener('click', async ()=>{
+          await PollPop.copyText(shareUrl);
+          const ok = document.getElementById('copy-ok');
+          ok.style.display='inline';
+          btnCopy.textContent='Copied ✓';
+          setTimeout(()=>{ ok.style.display='none'; btnCopy.textContent='Copy link'; }, 1800);
+        });
+      }
+      if(btnShare){
+        btnShare.addEventListener('click', async ()=>{
+          if(navigator.share){
+            try{ await navigator.share({ title: poll.title, text: poll.description, url: shareUrl }); }catch{}
+          } else {
+            await PollPop.copyText(shareUrl);
+            btnShare.textContent='Link copied ✓';
+            setTimeout(()=> btnShare.textContent='Share…', 1500);
+          }
+        });
+      }
+
+      // PRIMARY CTA tracking — intercept click to log before navigate
+      const ctaPrimary = document.getElementById('cta-primary');
+      if(ctaPrimary){
+        ctaPrimary.addEventListener('click', (e)=>{
+          // track before navigating (sync)
+          PollPopAnalytics.track('cta_click', { poll_id: poll.id });
+          // allow navigation to proceed
+        });
+      }
+      // also track clicks on secondary
+      const ctaSec = mount.querySelector('.cta-secondary');
+      if(ctaSec){
+        ctaSec.addEventListener('click', ()=>{
+          PollPopAnalytics.track('cta_click', { poll_id: poll.id, variant:'secondary' });
+        });
+      }
+
+      // if we just rendered results and haven't tracked cta_view yet (e.g. returning voter)
+      // ensure cta_view is tracked once per voter per poll view
+      // we already tracked on vote; for returning voters, track now if not already tracked this session
+      const sessionKey = 'pollpop_ctaview_'+poll.id;
+      if(!sessionStorage.getItem(sessionKey)){
+        // small delay to ensure it's actually seen
+        setTimeout(()=>{
+          const rect = document.getElementById('cta-card')?.getBoundingClientRect();
+          if(rect){
+            PollPopAnalytics.track('cta_view', { poll_id: poll.id });
+            sessionStorage.setItem(sessionKey,'1');
+          }
+        }, 700);
+      }
+      // animate bars
+      requestAnimationFrame(()=>{
+        document.querySelectorAll('.bar-fill').forEach(el=>{
+          const w = el.style.width;
+          el.style.width='0%';
+          requestAnimationFrame(()=> setTimeout(()=> el.style.width=w, 80));
+        });
+      });
+    }
+  }
+
+  function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  render();
+
+  // keyboard: 1-4 to vote quick
+  window.addEventListener('keydown', (e)=>{
+    if(hasVoted) return;
+    const n = parseInt(e.key,10);
+    if(n>=1 && n<=poll.options.length){
+      selected = poll.options[n-1].id;
+      render();
+    }
+  });
+})();
+</script>
+</body>
+</html>

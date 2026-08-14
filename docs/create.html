@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Create your poll — PollPop</title>
+<meta name="description" content="Pick a template, add your options — we’ll DM your live poll link in ~2 hours. Fake-door validation.">
+<meta property="og:title" content="Create your poll — PollPop">
+<meta property="og:description" content="Pick a template, add 2–4 images, get a beautiful poll link.">
+<meta property="og:image" content="https://picsum.photos/seed/pollpop-create/1200/630">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark">P</span> PollPop <small>validation</small></a>
+    <div class="nav-links">
+      <a class="pill" href="index.html">All polls</a>
+      <a class="pill" href="metrics.html">Metrics</a>
+    </div>
+  </div>
+</nav>
+
+<div class="form-wrap">
+  <div class="breadcrumb"><a href="index.html">← All polls</a> <span id="from-hint"></span></div>
+
+  <div class="form-card" id="form-card">
+    <h1>Create your poll — 15 seconds</h1>
+    <p>This is the <b>fake-door</b> validation form: pick a template, add options, submit. We’ll show your queue position and “DM in 2hrs” concierge message — the click + submit ARE the metric.</p>
+
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <span class="tag">✦ CTR is the metric</span>
+      <span class="tag">No login · OG preview · Live results</span>
+    </div>
+
+    <div class="field" style="margin-top:16px">
+      <label>Pick a template (optional)</label>
+      <div class="templates" id="templates">
+        <button class="tmpl" data-tmpl="style"><b>👟 Style Pick</b><span>Outfit / sneakers — 2 images, bold</span></button>
+        <button class="tmpl" data-tmpl="food"><b>🍜 Food Battle</b><span>Restaurant / dish — 2–4 options</span></button>
+        <button class="tmpl" data-tmpl="design"><b>🎨 Design A/B</b><span>Logo / thumbnail — 2–3 variants</span></button>
+        <button class="tmpl" data-tmpl="group"><b>✈️ Group Trip</b><span>Airbnb / plan — 3 options, tallies</span></button>
+      </div>
+    </div>
+
+    <form id="create-form" novalidate>
+      <div class="field">
+        <label for="q">Your question</label>
+        <input id="q" name="question" placeholder="e.g. Which fit for tonight? Be honest." maxlength="90" required>
+      </div>
+
+      <div class="field">
+        <label>Options (2–4)</label>
+        <div class="options-builder" id="options-builder">
+          <div class="opt-row"><input placeholder="Option A — e.g. Fit A — Street + Gold" data-idx="0"><button type="button" class="icon-btn" data-remove="0" aria-label="Remove">×</button></div>
+          <div class="opt-row"><input placeholder="Option B — e.g. Fit B — Minimal Cream" data-idx="1"><button type="button" class="icon-btn" data-remove="1" aria-label="Remove">×</button></div>
+        </div>
+        <button type="button" class="btn small" id="add-opt" style="margin-top:8px">+ Add option</button>
+        <span style="font-size:11px;color:var(--muted);font-weight:600;margin-top:4px">Images are auto-assigned placeholders for validation — real builder would allow upload.</span>
+      </div>
+
+      <div class="field">
+        <label for="handle">Where should we DM your link? (handle / phone)</label>
+        <input id="handle" name="handle" placeholder="IG / WhatsApp / iMessage handle — or email" required>
+      </div>
+
+      <div class="field">
+        <label for="vibe">Vibe (optional)</label>
+        <select id="vibe" name="vibe">
+          <option value="">Pick a vibe…</option>
+          <option>Fun & casual</option>
+          <option>Honest & brutal</option>
+          <option>Design feedback</option>
+          <option>Group decision</option>
+        </select>
+      </div>
+
+      <button class="submit" type="submit">Get my poll link →</button>
+      <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px">By submitting you join the concierge queue. The submit event IS the fake-door conversion.</p>
+    </form>
+
+    <div id="success" class="success hidden">
+      <h3>You're <span id="queue-n">#—</span> in line ✓</h3>
+      <p id="success-msg">We’ll DM your live poll link within ~2 hours. Concierge fulfillment — hand-made for validation. Share it to your group chat and watch votes come in.</p>
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <a class="btn primary" href="index.html">Back to polls</a>
+        <a class="btn" href="metrics.html">View metrics →</a>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:10px">Tip: open <b>Metrics</b> to see your fake_door_submit event logged. That + cta_click = PASS signal.</p>
+    </div>
+  </div>
+
+  <div style="margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+    <span style="font-size:12px;color:var(--muted);font-weight:600">Already voted? <a href="index.html" style="text-decoration:underline">Browse live polls →</a></span>
+    <span style="font-size:11px;color:var(--muted2)">Metrics: <a href="metrics.html" style="text-decoration:underline">metrics.html</a> · console: PollPopAnalytics.computeMetrics()</span>
+  </div>
+</div>
+
+<script src="js/analytics.js"></script>
+<script src="js/app.js"></script>
+<script>
+(function(){
+  const params = new URLSearchParams(window.location.search);
+  const from = params.get('from') || params.get('poll') || params.get('id');
+  const fromHint = document.getElementById('from-hint');
+  if(from) fromHint.textContent = `· from poll: ${from}`;
+
+  // template select
+  const tmpls = document.querySelectorAll('.tmpl');
+  let chosenTmpl = null;
+  tmpls.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      tmpls.forEach(b=>b.classList.remove('selected'));
+      btn.classList.add('selected');
+      chosenTmpl = btn.dataset.tmpl;
+      // prefill question hint
+      const q = document.getElementById('q');
+      const hints = {
+        style:'Which fit should I wear tonight?',
+        food:'Where are we eating Saturday? Majority wins.',
+        design:'Which logo would you actually trust?',
+        group:'Which Airbnb are we booking? Vote or no complaints later.'
+      };
+      if(!q.value) q.value = hints[chosenTmpl]||'';
+      q.focus();
+    });
+  });
+
+  // prefill from poll if came from CTA
+  (async ()=>{
+    if(!from) return;
+    try{
+      const polls = await fetchPollsRobust();
+      const p = polls.find(x=>x.id===from);
+      if(p){
+        document.getElementById('q').placeholder = p.question;
+        // fill two options with poll labels as inspiration
+        const inputs = document.querySelectorAll('#options-builder input');
+        if(p.options[0] && inputs[0]) inputs[0].placeholder = p.options[0].label;
+        if(p.options[1] && inputs[1]) inputs[1].placeholder = p.options[1].label;
+      }
+    }catch{}
+  })();
+
+  // options builder
+  const builder = document.getElementById('options-builder');
+  document.getElementById('add-opt').addEventListener('click', ()=>{
+    const count = builder.querySelectorAll('.opt-row').length;
+    if(count>=4){ alert('Max 4 options for validation.'); return; }
+    const row = document.createElement('div');
+    row.className='opt-row';
+    row.innerHTML = `<input placeholder="Option ${String.fromCharCode(65+count)} — label" data-idx="${count}"><button type="button" class="icon-btn" data-remove="${count}" aria-label="Remove">×</button>`;
+    builder.appendChild(row);
+  });
+  builder.addEventListener('click', (e)=>{
+    const btn = e.target.closest('[data-remove]');
+    if(!btn) return;
+    const rows = builder.querySelectorAll('.opt-row');
+    if(rows.length<=2){ alert('Need at least 2 options.'); return; }
+    btn.closest('.opt-row').remove();
+  });
+
+  // submit -> fake-door
+  const form = document.getElementById('create-form');
+  form.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const q = document.getElementById('q').value.trim() || document.getElementById('q').placeholder;
+    const handle = document.getElementById('handle').value.trim();
+    if(!q){ alert('Add a question.'); return; }
+    if(!handle){ alert('Add where to DM your link.'); document.getElementById('handle').focus(); return; }
+    const opts = [...builder.querySelectorAll('input')].map(i=>i.value.trim()).filter(Boolean);
+    // allow placeholders to count if empty
+    const optionLabels = opts.length>=2 ? opts : [...builder.querySelectorAll('input')].map(i=>i.placeholder).slice(0,2);
+
+    // queue position = fake_door_submit count + 1 + random
+    const m = PollPopAnalytics.computeMetrics();
+    const n = (m.fake_submits||0) + 1 + Math.floor(Math.random()*3);
+    // track
+    PollPopAnalytics.track('fake_door_submit', {
+      poll_id: from || 'direct',
+      template_choice: chosenTmpl || 'custom',
+      question: q.slice(0,120),
+      options: optionLabels,
+      handle: handle.slice(0,40)
+    });
+
+    // show success
+    document.getElementById('queue-n').textContent = '#'+n;
+    document.getElementById('success').classList.remove('hidden');
+    form.classList.add('hidden');
+    document.getElementById('form-card').scrollIntoView({behavior:'smooth', block:'start'});
+    // also log to console
+    console.log('[PollPop] fake-door queue position', n, '— check metrics.html or PollPopAnalytics.computeMetrics()');
+  });
+
+  // if landed via CTA, mark that we saw create page (optional funnel step)
+  if(from) PollPopAnalytics.track('create_view', { poll_id: from });
+})();
+</script>
+</body>
+</html>
