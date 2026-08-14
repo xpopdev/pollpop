@@ -1,6 +1,6 @@
 # PollPop — One-Page PRD Summary
 
-> DRAFT — contingent on H-001 PASS (CTR ≥0.08). Do not build until validation passes per `company/decisions/approved.md`.
+> PASS 2026-08-14 — H-001 CTR≥0.08 validated via human PASS. Supersedes DRAFT. Build underway per `company/decisions/approved.md` + `company_state.md` PHASE 3. All §29 ESTIMATE/HYPOTHESIS labels remain until live CTR/K re-measured at scale.
 
 **One-liner:** 15-second visual polls (2–4 images + title) with a share link that unfurls beautifully — every voter sees a sticky "Create your own — 15s" CTA that is the product's viral loop.
 
@@ -45,3 +45,15 @@ Build-ready means: P0 E2E on mobile 4G ≤15s create, <500ms optimistic vote, <2
 ## Sources
 
 `company/research/opportunity_map.md` (Candidate 003, 76/120, Viral 7, WEAKEN→VALIDATE), `company/decisions/approved.md` (binding CTR/KILL thresholds), `company/research/technologies/poll_infra.md` (Supabase/Realtime/OG/soft dedup), `company/research/competitors/instagram_polls.md` (voter→creator gap), `pollpop-validation/data/polls.json` (8 poll shapes).
+
+## Known limitations (quality-bar 2026-08-14, Unattended — gaps back into Phase B, not a stop)
+
+Per §33 honest check, all builds on ESTIMATE/HYPOTHESIS until live CTR/K re-measured at scale. Unchecked items from this cycle's quality-bar (not stop-conditions per CLAUDE.md):
+
+- **Tests not run this session:** 11 vitest + 2 playwright e2e committed (`app/lib/store.test.ts` 4, `dedup.test.ts` 3, `analytics.test.ts` 2, `app/api/polls/route.test.ts` 2, `e2e/create-vote-cta.spec.ts` 2; `vitest.config.ts` jsdom, `playwright.config.ts` prod baseURL) — `npm install` blocked on Termux shared storage EACCES symlink (`vitest: not found` even after `approve esbuild/sharp/unrs-resolver`, `npx --package=vitest` fails, internal `/data/...` permission denied). Vercel prod built green on Node 20 (internal fs), but local `vitest run`/`playwright test` still needed outside shared storage.
+- **Integration/e2e not run:** `POST /api/polls` → vote soft-dedup against live Supabase `dgurslguhkatnshlzvfcy`, `curl https://pollpop-five.vercel.app/api/polls/<id>/og` `x-pollpop-og` PNG check, Realtime <2s / 5s fallback, 50-concurrent burst atomic via `002_vote_rpc.sql` — all file-reviewed PASS but no live probe (sandbox curl denied, WebFetch SSO/403).
+- **Security review incomplete:** `company/engineering/security/` no formal threat model signed. File-based QA PASS: .env/app/.env.local gitignored, salted ip_hash via dedup.ts, RLS `allow all` per table intentionally permissive for MVP (relies on app-layer caps: 10 votes/IP/24h, 5 creates/IP/h), 5-word profanity filter only, Storage bucket `poll-images` public not auto-created. Needs security-engineer pass before MVP complete.
+- **Performance not measured:** Realtime target <2s, 5s poll fallback, 15s create, OG edge cache 3600 — all ESTIMATE per `requirements.md` 150-300ms debounce, not benchmarked.
+- **Failure modes not tested:** No red-team-review output — Realtime down, image upload fail, NSFW provider down, 429 Retry-After not chaos-tested.
+- **Docs not confirmed:** `technical-writer` not consulted.
+- **Next:** Fix install env (move `app/` outside `/storage/emulated/0` or standard Linux/Node 18-20), `qa-lead` actual runs, `security-engineer` + `red-team-review`, `validate-hypothesis` on live CTR/K, then re-run `quality-bar`. Once every §33 item genuinely checked, milestone in `history/milestones/` and §40 continuous improvement.
