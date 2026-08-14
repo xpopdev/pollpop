@@ -61,7 +61,35 @@ No secrets are shipped to the client beyond the anon key.
 1. Push `app/` to GitHub (or connect repo in Vercel dashboard, set Root Directory to `app`)
 2. Add the same env vars in Vercel → Settings → Environment Variables
 3. Build command: `npm run build`, Output: `.next`
-4. OG images are edge-rendered SVG at `/api/polls/[id]/og` (cached `public, max-age=3600`). No `sharp`/`vercel/og` needed for MVP; swap to `vercel/og` collage later without changing callers (`lib/og.ts` is the seam).
+4. OG images are edge-rendered SVG at `/api/polls/[id]/og` (cached `public, max-age=3600`). For production chat unfurl (WhatsApp/Discord), switch to `vercel/og` PNG or `sharp` (see `lib/og.ts` and `app/api/polls/[id]/og/route.ts` TODO) without changing callers.
+
+## Testing
+
+```bash
+cd app
+npm install
+
+# unit only (vitest, jsdom, mock store — no Supabase needed, deterministic)
+npm run test          # single run
+npm run test:watch    # watch mode
+
+# e2e (Playwright, mock mode via Next dev server, or prod if reachable)
+npm run test:e2e      # runs against localhost (webServer) or PLAYWRIGHT_BASE_URL
+#  PLAYWRIGHT_BASE_URL=http://localhost:3000 npm run test:e2e   # force local
+#  PLAYWRIGHT_BASE_URL=https://pollpop-five.vercel.app npm run test:e2e  # prod
+
+# all
+npm run test:all      # vitest run && playwright test
+```
+
+- Unit tests live under `lib/*.test.ts` and `app/api/polls/route.test.ts` — they use the mock store (`isSupabaseConfigured=false`) so they are deterministic without Supabase.
+- `lib/store.test.ts` — validates P0-1 (2-4 opts, label≤24, title≤80), rejects bad input, hash dedup last-wins, burst 50 concurrent votes additive.
+- `lib/dedup.test.ts` — `pollpop_cid` uuid, `hashIpSync` deterministic, `clientIpFromHeaders` prefers `x-forwarded-for`.
+- `lib/analytics.test.ts` — beacon payload shape + single-fire per action.
+- `app/api/polls/route.test.ts` — `POST /api/polls` 201 happy path, 400 validation.
+- E2E: `e2e/create-vote-cta.spec.ts` — create → vote → bars + sticky CTA → `cta_view`/`cta_click` + OG meta `og:image`/`og:title`/`twitter:card`. Runs against mock mode (localhost) or prod if `PLAYWRIGHT_BASE_URL` is set.
+
+Configs: `vitest.config.ts` (jsdom, `@/*` alias, `app/**/*.test.ts` + `lib/**/*.test.ts`), `playwright.config.ts` (baseURL `https://pollpop-five.vercel.app` with `http://localhost:3000` fallback via `webServer`).
 
 ## Project layout
 

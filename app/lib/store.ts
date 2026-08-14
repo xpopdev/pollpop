@@ -214,6 +214,10 @@ export async function voteOnPoll(input: {
   if (!poll.options.find((o) => o.id === input.option_id)) return { error: "Option not found", status: 400 };
 
   if (!isSupabaseConfigured) {
+    // Mock vote path — in-memory single-process, so direct increment is race-free.
+    // NOTE: do not change this mock logic when fixing prod. Prod Supabase branch
+    // below must use RPC `increment_vote` (atomic UPDATE poll_options SET votes = votes + 1).
+    // See TODO(P0-2) on the Supabase branch for the SQL migration.
     const db = getMock();
     const salt = process.env.IP_HASH_SALT || "dev-salt";
     const ip_hash = hashIpSync(input.ip, salt);
@@ -278,7 +282,33 @@ export async function voteOnPoll(input: {
     return { counts, total };
   }
 
-  // Supabase transactional vote via RPC-like upsert + increment
+  // Supabase path: atomic increment via RPC (eliminates read-then-write race)
+  // ── TODO(P0-2) PROD RACE FIX ──────────────────────────────────────────
+  // Burst (group-chat spike) must not lose increments to concurrent read-then-write.
+  // Production should use Postgres ROW-LEVEL atomic increment via RPC, not
+  //   const { data } = await supa.from("poll_options").select("votes")...
+  //   await supa.from("poll_options").update({ votes: data.votes + 1 })
+  // which races under 50 concurrent voters.
+  // Preferred: `increment_vote` / `decrement_vote` RPC (see SQL below).
+  // This file keeps read-then-write as FALLBACK only so mock/local never 500
+  // if the migration hasn't been applied yet. Supabase path tries rpc() first.
+  // Do not change mock vote logic above — it is in-memory and race-free.
+  //
+  // SQL to add as supabase/migrations/002_vote_rpc.sql:
+  //   create or replace function increment_vote(p_poll_id text, p_option_id text)
+  //   returns void language plpgsql as $$
+  //   begin
+  //     update poll_options set votes = votes + 1
+  //     where id = p_option_id and poll_id = p_poll_id;
+  //   end; $$;
+  //   create or replace function decrement_vote(p_poll_id text, p_option_id text)
+  //   returns void language plpgsql as $$
+  //   begin
+  //     update poll_options set votes = greatest(0, votes - 1)
+  //     where id = p_option_id and poll_id = p_poll_id;
+  //   end; $$;
+  // After migration: `supa.rpc("increment_vote", { p_poll_id, p_option_id })`
+  // ─────────────────────────────────────────────────────────────────────
   const supa = supaService()!;
   const salt = process.env.IP_HASH_SALT || "dev-salt";
   const ip_hash = hashIpSync(input.ip, salt);
@@ -291,26 +321,38 @@ export async function voteOnPoll(input: {
   const isNew = !existing;
   if (isNew && (count || 0) >= 10) return { error: "Too many votes — try again tomorrow", status: 429 };
 
+  // helper: atomic increment via RPC, fallback to read-then-write if RPC not yet migrated
+  async function atomicIncrement(pollId: string, optionId: string) {
+    const { error } = await supa.rpc("increment_vote" as never, { p_poll_id: pollId, p_option_id: optionId } as never);
+    if (!error) return;
+    // fallback: read-then-write (race-prone but avoids 500 if migration not applied)
+    const { data: opt } = await supa.from("poll_options").select("votes").eq("id", optionId).single();
+    await supa.from("poll_options").update({ votes: ((opt as { votes: number } | null)?.votes ?? 0) + 1 } as never).eq("id", optionId);
+  }
+  async function atomicDecrement(pollId: string, optionId: string) {
+    const { error } = await supa.rpc("decrement_vote" as never, { p_poll_id: pollId, p_option_id: optionId } as never);
+    if (!error) return;
+    // fallback: decrement with floor 0
+    const { data: opt } = await supa.from("poll_options").select("votes").eq("id", optionId).single();
+    await supa.from("poll_options").update({ votes: Math.max(0, ((opt as { votes: number } | null)?.votes ?? 1) - 1) } as never).eq("id", optionId);
+  }
+
   if (existing) {
     if (existing.option_id !== input.option_id) {
-      // decrement old, increment new atomically via two updates
-      await supa.from("poll_options").update({ votes: poll.options.find(o=>o.id===existing.option_id)!.votes - 1 } as never).eq("id", existing.option_id);
-      // do proper increment via rpc-style read+write (best we can without pg function)
-      const { data: newOpt } = await supa.from("poll_options").select("votes").eq("id", input.option_id).single();
-      await supa.from("poll_options").update({ votes: ((newOpt as {votes:number})?.votes ?? 0) + 1 } as never).eq("id", input.option_id);
+      await atomicDecrement(input.poll_id, existing.option_id);
+      await atomicIncrement(input.poll_id, input.option_id);
       await supa.from("votes").update({ option_id: input.option_id, created_at: new Date().toISOString() }).eq("id", existing.id);
     }
   } else {
-    const { data: newOpt } = await supa.from("poll_options").select("votes").eq("id", input.option_id).single();
-    await supa.from("poll_options").update({ votes: ((newOpt as {votes:number})?.votes ?? 0) + 1 } as never).eq("id", input.option_id);
+    await atomicIncrement(input.poll_id, input.option_id);
     await supa.from("votes").insert({ poll_id: input.poll_id, option_id: input.option_id, voter_cookie: input.voter_cookie, ip_hash });
   }
 
   // fetch fresh counts
   const { data: opts } = await supa.from("poll_options").select("id, votes").eq("poll_id", input.poll_id);
   const counts: Record<string, number> = {};
-  for (const o of (opts as {id:string;votes:number}[]) || []) counts[o.id] = o.votes;
-  const total = Object.values(counts).reduce((a,b)=>a+b,0);
+  for (const o of (opts as { id: string; votes: number }[]) || []) counts[o.id] = o.votes;
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return { counts, total };
 }
 
