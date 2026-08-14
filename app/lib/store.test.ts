@@ -37,7 +37,7 @@ describe("store — createPoll validation", () => {
       void cp;
       const mod = await import("./store");
       const res = await mod.createPoll({
-        title: "X".repeat(80),
+        title: "A".repeat(80),
         context: "ctx",
         category: "Test",
         options: mkOpts(n),
@@ -64,7 +64,7 @@ describe("store — createPoll validation", () => {
     expect(await createPoll({ title: "", options: good2, creator_cookie: null, ip: "2.2.2.2" })).toMatchObject({ status: 400 });
     expect(await createPoll({ title: "   ", options: good2, creator_cookie: null, ip: "2.2.2.2" })).toMatchObject({ status: 400 });
     // title too long
-    expect(await createPoll({ title: "X".repeat(81), options: good2, creator_cookie: null, ip: "2.2.2.2" })).toMatchObject({ status: 400 });
+    expect(await createPoll({ title: "A".repeat(81), options: good2, creator_cookie: null, ip: "2.2.2.2" })).toMatchObject({ status: 400 });
     // 0 opts
     expect(await createPoll({ title: "ok", options: [], creator_cookie: null, ip: "2.2.2.2" })).toMatchObject({ status: 400 });
     // 1 opt

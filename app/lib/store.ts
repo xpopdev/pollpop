@@ -133,9 +133,9 @@ export async function createPoll(input: {
     if (!o.image_url.trim()) return { error: "Each option needs an image", status: 400 };
     try { new URL(o.image_url); } catch { return { error: `Invalid image URL: ${o.image_url}`, status: 400 }; }
   }
-  // basic profanity filter (MVP)
-  const bad = ["fuck","shit","nigger","porn","xxx"];
-  if (bad.some(w => title.toLowerCase().includes(w))) return { error: "Title contains blocked words", status: 400 };
+  // basic profanity filter (MVP) — word boundaries, not substring, to avoid "xxx" in "X".repeat(80)
+  const badRe = [/\bfuck\b/i, /\bshit\b/i, /\bnigger\b/i, /\bporn\b/i, /\bxxx\b/i];
+  if (badRe.some(re => re.test(title))) return { error: "Title contains blocked words", status: 400 };
 
   if (!isSupabaseConfigured) {
     const db = getMock();
