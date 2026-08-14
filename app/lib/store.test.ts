@@ -1232,4 +1232,51 @@ describe("store — createPoll validation", () => {
     expect(freshB2!.options.find((o) => o.id === optB1.id)?.votes).toBe(1);
     expect(freshB2!.options.reduce((a, o) => a + o.votes, 0)).toBe(1);
   });
+
+  it("counts votes from 3 distinct voters on same option correctly (2-option poll, mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, voteOnPoll, getPoll } = await import("./store");
+    const res = await createPoll({
+      title: "Which fit? — multi-voter count",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/multi-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/multi-b/600/600" },
+      ],
+      creator_cookie: "multi-cid",
+      ip: "22.22.22.10",
+    });
+    expect("poll" in res, `expected poll, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    const poll = res.poll;
+    expect(poll.options).toHaveLength(2);
+    const optA = poll.options[0];
+    const optB = poll.options[1];
+    expect(poll.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(optA.position).toBe(0);
+    expect(optB.position).toBe(1);
+
+    // 3 distinct voters each vote for optA — counts must be additive (3), optB stays 0
+    const voters = [
+      { voter_cookie: "multi-voter-1", ip: "22.22.22.11" },
+      { voter_cookie: "multi-voter-2", ip: "22.22.22.12" },
+      { voter_cookie: "multi-voter-3", ip: "22.22.22.13" },
+    ];
+    for (let i = 0; i < voters.length; i++) {
+      const v = voters[i];
+      const r = await voteOnPoll({ poll_id: poll.id, option_id: optA.id, voter_cookie: v.voter_cookie, ip: v.ip });
+      expect("counts" in r, `expected vote ${i + 1} to succeed, got ${JSON.stringify(r)}`).toBe(true);
+      if (!("counts" in r)) return;
+      expect(r.total).toBe(i + 1);
+      expect(r.counts[optA.id]).toBe(i + 1);
+      expect(r.counts[optB.id]).toBe(0);
+    }
+
+    // persisted state via getPoll — additive, no lost increments, B still 0
+    const fresh = await getPoll(poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.options.find((o) => o.id === optA.id)?.votes).toBe(3);
+    expect(fresh!.options.find((o) => o.id === optB.id)?.votes).toBe(0);
+    expect(fresh!.options.reduce((a, o) => a + o.votes, 0)).toBe(3);
+    expect(fresh!.options.map((o) => o.position)).toEqual([0, 1]);
+  });
 });
