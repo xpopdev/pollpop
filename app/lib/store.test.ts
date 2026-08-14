@@ -317,4 +317,35 @@ describe("store — createPoll validation", () => {
     });
     expect("poll" in ok, `expected poll at exactly 6MB, got ${JSON.stringify(ok).slice(0, 200)}`).toBe(true);
   });
+
+  it("poll with 3 options has positions 0,1,2 in order and votes start at 0", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const res = await createPoll({
+      title: "3-opt ordering test",
+      options: [
+        { label: "Alpha", image_url: "https://picsum.photos/seed/orderA/600/600" },
+        { label: "Beta", image_url: "https://picsum.photos/seed/orderB/600/600" },
+        { label: "Gamma", image_url: "https://picsum.photos/seed/orderC/600/600" },
+      ],
+      creator_cookie: "order-cid",
+      ip: "9.9.9.10",
+    });
+    expect("poll" in res, `expected poll, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    expect(res.poll.options).toHaveLength(3);
+    // positions must be 0,1,2 in input order, votes 0
+    res.poll.options.forEach((o, i) => {
+      expect(o.position).toBe(i);
+      expect(o.votes).toBe(0);
+    });
+    expect(res.poll.options.map((o) => o.label)).toEqual(["Alpha", "Beta", "Gamma"]);
+    expect(res.poll.options.map((o) => o.position)).toEqual([0, 1, 2]);
+    // verify persisted order via getPoll (mock store keeps insertion order + position)
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.options.map((o) => o.position)).toEqual([0, 1, 2]);
+    expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0, 0]);
+    expect(fresh!.options.map((o) => o.label)).toEqual(["Alpha", "Beta", "Gamma"]);
+  });
 });
