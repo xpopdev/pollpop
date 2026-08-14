@@ -842,4 +842,100 @@ describe("store — createPoll validation", () => {
     expect(fresh2!.context).toBeNull();
     expect(fresh2!.category).toBeNull();
   });
+
+  it("voteOnPoll with unknown option_id returns 400 Option not found (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, voteOnPoll, getPoll } = await import("./store");
+    const res = await createPoll({
+      title: "Option validation test",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/opt-val-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/opt-val-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "16.16.16.16",
+    });
+    expect("poll" in res, `expected poll, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    const poll = res.poll;
+    expect(poll.options).toHaveLength(2);
+    // valid poll, unknown option_id → 400 Option not found
+    const bad = await voteOnPoll({
+      poll_id: poll.id,
+      option_id: "unknown-option-id-zzz-999",
+      voter_cookie: "opt-val-voter-1",
+      ip: "16.16.16.17",
+    });
+    expect(bad).toMatchObject({ status: 400 });
+    if ("error" in (bad as { error: string; status: number })) {
+      expect((bad as { error: string }).error).toMatch(/Option not found/i);
+    }
+    // empty option_id also 400 Option not found (not 404, poll exists)
+    const badEmpty = await voteOnPoll({
+      poll_id: poll.id,
+      option_id: "",
+      voter_cookie: "opt-val-voter-2",
+      ip: "16.16.16.18",
+    });
+    expect(badEmpty).toMatchObject({ status: 400 });
+    if ("error" in (badEmpty as { error: string; status: number })) {
+      expect((badEmpty as { error: string }).error).toMatch(/Option not found/i);
+    }
+    // cross-poll option_id (option belongs to different poll) → also 400
+    resetMock();
+    const { createPoll: cp2, voteOnPoll: vote2, getPoll: get2 } = await import("./store");
+    void cp2; void vote2; void get2;
+    const mod = await import("./store");
+    const r1 = await mod.createPoll({
+      title: "Poll A for cross-opt check",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/cross-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/cross-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "16.16.16.19",
+    });
+    expect("poll" in r1).toBe(true);
+    if (!("poll" in r1)) return;
+    const r2 = await mod.createPoll({
+      title: "Poll B for cross-opt check",
+      options: [
+        { label: "C", image_url: "https://picsum.photos/seed/cross-c/600/600" },
+        { label: "D", image_url: "https://picsum.photos/seed/cross-d/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "16.16.16.20",
+    });
+    expect("poll" in r2).toBe(true);
+    if (!("poll" in r2)) return;
+    const crossOptId = r2.poll.options[0].id; // belongs to r2, not r1
+    const cross = await mod.voteOnPoll({
+      poll_id: r1.poll.id,
+      option_id: crossOptId,
+      voter_cookie: "opt-val-voter-cross",
+      ip: "16.16.16.21",
+    });
+    expect(cross).toMatchObject({ status: 400 });
+    if ("error" in (cross as { error: string; status: number })) {
+      expect((cross as { error: string }).error).toMatch(/Option not found/i);
+    }
+    // verify no vote counted on either poll after rejected votes
+    const freshA = await mod.getPoll(r1.poll.id);
+    expect(freshA).not.toBeNull();
+    expect(freshA!.options.map((o) => o.votes)).toEqual([0, 0]);
+    const freshB = await mod.getPoll(r2.poll.id);
+    expect(freshB).not.toBeNull();
+    expect(freshB!.options.map((o) => o.votes)).toEqual([0, 0]);
+    // valid vote still succeeds after rejections (proves poll not poisoned)
+    const ok = await mod.voteOnPoll({
+      poll_id: r1.poll.id,
+      option_id: r1.poll.options[0].id,
+      voter_cookie: "opt-val-voter-ok",
+      ip: "16.16.16.22",
+    });
+    expect("counts" in ok).toBe(true);
+    if (!("counts" in ok)) return;
+    expect(ok.total).toBe(1);
+    expect(ok.counts[r1.poll.options[0].id]).toBe(1);
+  });
 });
