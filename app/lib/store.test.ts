@@ -1315,4 +1315,56 @@ describe("store — createPoll validation", () => {
     expect(fresh!.options.reduce((a, o) => a + o.votes, 0)).toBe(0);
     expect(fresh!.options.map((o) => o.position)).toEqual([0, 1]);
   });
+
+  it("getPoll returns poll with correct poll_id linkage for each option (option.poll_id === poll.id) (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll, voteOnPoll } = await import("./store");
+    // 2-option poll — verify linkage on create response and via getPoll
+    const res2 = await createPoll({
+      title: "Linkage check 2-opt",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/link-a2/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/link-b2/600/600" },
+      ],
+      creator_cookie: "link-cid-2",
+      ip: "24.24.24.10",
+    });
+    expect("poll" in res2, `expected poll 2-opt, got ${JSON.stringify(res2)}`).toBe(true);
+    if (!("poll" in res2)) return;
+    expect(res2.poll.options).toHaveLength(2);
+    for (const o of res2.poll.options) expect(o.poll_id).toBe(res2.poll.id);
+    const fresh2 = await getPoll(res2.poll.id);
+    expect(fresh2).not.toBeNull();
+    expect(fresh2!.options).toHaveLength(2);
+    for (const o of fresh2!.options) expect(o.poll_id).toBe(fresh2!.id);
+    expect(fresh2!.id).toBe(res2.poll.id);
+    // linkage persists after vote (mock vote path mutates same poll object)
+    const rVote = await voteOnPoll({ poll_id: res2.poll.id, option_id: res2.poll.options[0].id, voter_cookie: "link-voter-1", ip: "24.24.24.11" });
+    expect("counts" in rVote).toBe(true);
+    const freshAfter = await getPoll(res2.poll.id);
+    expect(freshAfter).not.toBeNull();
+    for (const o of freshAfter!.options) expect(o.poll_id).toBe(freshAfter!.id);
+    // 3-option poll — distinct poll, linkage isolated and not cross-wired
+    const res3 = await createPoll({
+      title: "Linkage check 3-opt",
+      options: [
+        { label: "X", image_url: "https://picsum.photos/seed/link-x3/600/600" },
+        { label: "Y", image_url: "https://picsum.photos/seed/link-y3/600/600" },
+        { label: "Z", image_url: "https://picsum.photos/seed/link-z3/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "24.24.24.12",
+    });
+    expect("poll" in res3, `expected poll 3-opt, got ${JSON.stringify(res3)}`).toBe(true);
+    if (!("poll" in res3)) return;
+    expect(res3.poll.options).toHaveLength(3);
+    for (const o of res3.poll.options) expect(o.poll_id).toBe(res3.poll.id);
+    const fresh3 = await getPoll(res3.poll.id);
+    expect(fresh3).not.toBeNull();
+    for (const o of fresh3!.options) expect(o.poll_id).toBe(fresh3!.id);
+    // cross-poll isolation: ids distinct, linkage not cross-wired
+    expect(fresh2!.id).not.toBe(fresh3!.id);
+    for (const o of fresh3!.options) expect(o.poll_id).not.toBe(fresh2!.id);
+    expect(new Set(fresh3!.options.map((o) => o.id)).size).toBe(3);
+  });
 });
