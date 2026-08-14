@@ -163,7 +163,7 @@ export async function createPoll(input: {
   title: string;
   context?: string;
   category?: string;
-  options: { label: string; image_url: string }[];
+  options: { label: string; image_url: string; color?: string }[];
   creator_cookie: string | null;
   ip: string;
 }): Promise<{ poll: Poll } | { error: string; status: number; code?: string; retry_after?: number }> {
@@ -226,6 +226,7 @@ export async function createPoll(input: {
         thumb_url: null,
         position: i,
         votes: 0,
+        color: o.color?.trim() || undefined,
       })),
     };
     db.polls.unshift(poll);
@@ -253,9 +254,9 @@ export async function createPoll(input: {
   });
   if (pErr) return { error: pErr.message, status: 500 };
   const opts = input.options.map((o, i) => ({
-    id: `${id}-opt-${i}`, poll_id: id, label: o.label.trim(), image_url: o.image_url.trim(), thumb_url: null, position: i, votes: 0,
+    id: `${id}-opt-${i}`, poll_id: id, label: o.label.trim(), image_url: o.image_url.trim(), thumb_url: null, position: i, votes: 0, color: o.color?.trim() || undefined,
   }));
-  const { error: oErr } = await supa.from("poll_options").insert(opts);
+  const { error: oErr } = await supa.from("poll_options").insert(opts as never);
   if (oErr) {
     try {
       await supa.from("polls").delete().eq("id", id);

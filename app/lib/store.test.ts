@@ -1367,4 +1367,44 @@ describe("store — createPoll validation", () => {
     for (const o of fresh3!.options) expect(o.poll_id).not.toBe(fresh2!.id);
     expect(new Set(fresh3!.options.map((o) => o.id)).size).toBe(3);
   });
+
+  it("creates 2-option poll with color field preserved verbatim and persisted via getPoll (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const colorA = "#ff3b82";
+    const colorB = "#7c3aed";
+    const res = await createPoll({
+      title: "Color preserve 2-opt",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/color-a/600/600", color: colorA },
+        { label: "B", image_url: "https://picsum.photos/seed/color-b/600/600", color: colorB },
+      ],
+      creator_cookie: "color-cid",
+      ip: "25.25.25.1",
+    });
+    expect("poll" in res, `expected poll, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    expect(res.poll.options).toHaveLength(2);
+    // positions 0,1 in input order, votes 0, colors preserved verbatim (trimmed)
+    expect(res.poll.options[0].position).toBe(0);
+    expect(res.poll.options[1].position).toBe(1);
+    expect(res.poll.options[0].votes).toBe(0);
+    expect(res.poll.options[1].votes).toBe(0);
+    expect(res.poll.options[0].color).toBe(colorA);
+    expect(res.poll.options[1].color).toBe(colorB);
+    expect(res.poll.options[0].label).toBe("A");
+    expect(res.poll.options[1].label).toBe("B");
+    // distinct ids and correct poll_id linkage
+    expect(res.poll.options[0].id).not.toBe(res.poll.options[1].id);
+    for (const o of res.poll.options) expect(o.poll_id).toBe(res.poll.id);
+    // persisted via getPoll — same colors, order, votes
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.options).toHaveLength(2);
+    expect(fresh!.options.map((o) => o.color)).toEqual([colorA, colorB]);
+    expect(fresh!.options.map((o) => o.position)).toEqual([0, 1]);
+    expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(fresh!.options.map((o) => o.label)).toEqual(["A", "B"]);
+    for (const o of fresh!.options) expect(o.poll_id).toBe(fresh!.id);
+  });
 });
