@@ -1090,4 +1090,46 @@ describe("store — createPoll validation", () => {
     expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0]);
     for (const o of fresh!.options) expect(o.poll_id).toBe(fresh!.id);
   });
+
+  it("creates 2-option poll with recent created_at within 5s and og_image_url null (mock mode, deterministic)", async () => {
+    resetMock();
+    const before = Date.now();
+    const { createPoll, getPoll } = await import("./store");
+    const res = await createPoll({
+      title: "Recency 2-opt — within 5s",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/recency-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/recency-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "20.20.20.1",
+    });
+    expect("poll" in res, `expected poll, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    // 2 options as requested — not 3 or 4
+    expect(res.poll.options).toHaveLength(2);
+    expect(res.poll.options[0].position).toBe(0);
+    expect(res.poll.options[1].position).toBe(1);
+    // og_image_url must be null on create (no OG generated yet)
+    expect(res.poll.og_image_url).toBeNull();
+    // created_at must be recent — within 5s of call (mock path: new Date().toISOString())
+    expect(typeof res.poll.created_at).toBe("string");
+    const ts = Date.parse(res.poll.created_at);
+    expect(ts).not.toBeNaN();
+    // ISO round-trip
+    expect(new Date(res.poll.created_at).toISOString()).toBe(res.poll.created_at);
+    const now = Date.now();
+    expect(ts).toBeGreaterThanOrEqual(before - 1000);
+    expect(ts).toBeLessThanOrEqual(now + 1000);
+    expect(now - ts).toBeLessThan(5000);
+    expect(now - ts).toBeGreaterThanOrEqual(0);
+    // persisted via getPoll — same timestamp and null og_image
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.og_image_url).toBeNull();
+    expect(fresh!.created_at).toBe(res.poll.created_at);
+    expect(Date.parse(fresh!.created_at)).toBe(ts);
+    expect(fresh!.options).toHaveLength(2);
+    expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0]);
+  });
 });
