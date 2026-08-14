@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { getPoll } from "@/lib/store";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // ─────────────────────────────────────────────────────────────────────
@@ -72,17 +72,29 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   <text x="1160" y="610" text-anchor="end" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="rgba(255,255,255,.66)">OG • 1200×630 • poll ${escapeXml(params.id)}</text>
 </svg>`;
 
-    // SVG only for edge runtime — PNG via sharp requires Node runtime and
-    // triggers `node:crypto` webpack errors on edge. PNG TODO: switch this
-    // route to `runtime = "nodejs"` + vercel/og or sharp, or pre-render PNG to
-    // Supabase Storage at create time. Until then edge SVG never 500s and
-    // previews in browsers; WhatsApp/Discord unfurl may prefer PNG but will
-    // still show fallback link.
+    // Node runtime: attempt PNG via sharp (WhatsApp/Discord require image/png).
+    // sharp is Node-native — dynamic import stays in try/catch so missing dep
+    // never 500s; webpack no longer hits node:crypto since we are off edge.
+    try {
+      const mod: any = await import("sharp");
+      const sharp = mod.default ?? mod;
+      const png = await sharp(Buffer.from(svg)).png().toBuffer();
+      return new Response(png as BodyInit, {
+        headers: {
+          "content-type": "image/png",
+          "cache-control": "public, max-age=3600",
+          "x-pollpop-og": "png-sharp",
+        },
+      });
+    } catch {
+      // sharp not available/bundled — fall through to SVG fallback below
+    }
+
     return new Response(svg, {
       headers: {
         "content-type": "image/svg+xml; charset=utf-8",
         "cache-control": "public, max-age=3600",
-        "x-pollpop-og": "svg-edge",
+        "x-pollpop-og": "svg-nodejs",
       },
     });
   } catch {
