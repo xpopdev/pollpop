@@ -1049,4 +1049,45 @@ describe("store — createPoll validation", () => {
     expect(fresh!.options[0].id).not.toBe(fresh!.options[1].id);
     for (const o of fresh!.options) expect(o.poll_id).toBe(fresh!.id);
   });
+
+  it("accepts image_url with query params (picsum ?w=600) for 2-option poll — query-param regression (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    // picsum URLs with query params must pass `new URL(...)` validation and persist verbatim
+    // — covers real unfurl/CDN resize shape `?w=600` / `?w=600&h=800` (not stripped or 400)
+    const picsumQa = "https://picsum.photos/seed/pollpop-query-a/600/600?w=600";
+    const picsumQb = "https://picsum.photos/seed/pollpop-query-b/600/600?w=600&h=800&fit=crop";
+    const res = await createPoll({
+      title: "Query params picsum — ?w=600",
+      options: [
+        { label: "A", image_url: picsumQa },
+        { label: "B", image_url: picsumQb },
+      ],
+      creator_cookie: null,
+      ip: "19.19.19.22",
+    });
+    expect("poll" in res, `expected poll for picsum ?w=600 query-param URLs, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    // immediate response: 2 options, query strings preserved verbatim (trimmed), not normalized away
+    expect(res.poll.options).toHaveLength(2);
+    expect(res.poll.options[0].image_url).toBe(picsumQa);
+    expect(res.poll.options[1].image_url).toBe(picsumQb);
+    expect(res.poll.options[0].image_url).toContain("?w=600");
+    expect(res.poll.options[1].image_url).toContain("?w=600");
+    expect(res.poll.options[0].position).toBe(0);
+    expect(res.poll.options[1].position).toBe(1);
+    expect(res.poll.options.map((o) => o.votes)).toEqual([0, 0]);
+    // persisted via getPoll — same verbatim URLs with query params, not stripped
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.id).toBe(res.poll.id);
+    expect(fresh!.options).toHaveLength(2);
+    expect(fresh!.options[0].image_url).toBe(picsumQa);
+    expect(fresh!.options[1].image_url).toBe(picsumQb);
+    expect(fresh!.options[0].image_url).toContain("?w=600");
+    expect(fresh!.options[1].image_url).toContain("?w=600&h=800&fit=crop");
+    expect(fresh!.options.map((o) => o.position)).toEqual([0, 1]);
+    expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0]);
+    for (const o of fresh!.options) expect(o.poll_id).toBe(fresh!.id);
+  });
 });
