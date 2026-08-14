@@ -25,6 +25,15 @@ export async function POST(req: NextRequest) {
     const creator_cookie = getCookieFromHeader(cookieHeader) || (cidHeader ? String(cidHeader) : null) || null;
     const ip = clientIpFromHeaders(req.headers);
 
+    for (const opt of options) {
+      if (opt.image_url.startsWith("data:")) {
+        return NextResponse.json({ error: "Please upload via Storage — data URLs not allowed (use image URLs)" }, { status: 400 });
+      }
+      if (opt.image_url.length > 2048) {
+        return NextResponse.json({ error: "Image URL too long — upload to Storage" }, { status: 400 });
+      }
+    }
+
     const res = await createPoll({ title, context, category, options, creator_cookie, ip });
     if ("error" in res) {
       return NextResponse.json({ error: res.error }, { status: res.status });

@@ -148,7 +148,7 @@ export async function createPoll(input: {
   }
   // basic profanity filter (MVP) — word boundaries, not substring, to avoid "xxx" in "X".repeat(80)
   const badRe = [/\bfuck\b/i, /\bshit\b/i, /\bnigger\b/i, /\bporn\b/i, /\bxxx\b/i];
-  if (badRe.some(re => re.test(title))) return { error: "Title contains blocked words", status: 400 };
+  if (badRe.some(re => re.test(title) || (input.context && re.test(input.context)) || input.options.some(o => re.test(o.label)))) return { error: "Title contains blocked words", status: 400 };
 
   if (!isSupabaseConfigured) {
     const db = getMock();

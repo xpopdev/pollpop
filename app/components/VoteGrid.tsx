@@ -24,7 +24,7 @@ export function VoteGrid({
             onClick={() => !disabled && onSelect(o.id)}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelect(o.id); }}
+            onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && !disabled) onSelect(o.id); }}
             aria-pressed={selected}
           >
             <div className="opt-media">

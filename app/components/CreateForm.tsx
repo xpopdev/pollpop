@@ -26,8 +26,9 @@ export function CreateForm({ initialRef }: { initialRef?: string | null }) {
     if (!f) return;
     if (f.size > 5 * 1024 * 1024) { setError("Each image ≤5 MB. Try a smaller file."); return; }
     if (!["image/jpeg","image/png","image/webp","image/gif"].includes(f.type) && !f.type.startsWith("image/")) { setError("JPEG / PNG / WebP only."); return; }
+    // MVP-only: data URL path is temporary — will be replaced by Supabase Storage upload (poll-images bucket) in P1.
     // For MVP mock we create an object URL and treat it as imageUrl (client-side preview).
-    // Real Supabase path would upload to Storage; mock keeps the data URL.
+    // Real Supabase path would upload to Storage; mock keeps the data URL. Server now guards data URLs (400).
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result as string;

@@ -16,6 +16,7 @@ export default function PollClient({ id }: { id: string }) {
   const [hasVoted, setHasVoted] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [toast, setToast] = useState("");
+  const [voting, setVoting] = useState(false);
   const votedRef = useRef(false);
 
   const fetchPoll = useCallback(async () => {
@@ -85,11 +86,17 @@ export default function PollClient({ id }: { id: string }) {
   }, [showResults, poll, id, fetchPoll]);
 
   const onSelect = async (optionId: string) => {
-    if (!poll || votedRef.current) return;
+    if (!poll || votedRef.current || voting) return;
     votedRef.current = true;
+    setVoting(true);
     const cid = ensureClientId(); persistClientId(cid);
-    // optimistic
+    // snapshot for revert on error
     const prevSelected = selected;
+    const prevHasVoted = hasVoted;
+    const prevShowResults = showResults;
+    const prevPoll = poll;
+    const prevVote = (()=>{ try{ return localStorage.getItem(`pollpop_vote_${id}`);}catch{return null;} })();
+    // optimistic
     setSelected(optionId);
     setHasVoted(true);
     setShowResults(true);
@@ -122,17 +129,24 @@ export default function PollClient({ id }: { id: string }) {
       } else {
         fetchPoll();
       }
+      // only toast after server 200 confirms counts
       setToast("Vote counted ✓");
       setTimeout(()=>setToast(""), 1800);
     } catch (e: unknown) {
+      // revert optimistic state on server error
+      setSelected(prevSelected);
+      setHasVoted(prevHasVoted);
+      setShowResults(prevShowResults);
+      setPoll(prevPoll);
+      try {
+        if (prevVote) localStorage.setItem(`pollpop_vote_${id}`, prevVote);
+        else localStorage.removeItem(`pollpop_vote_${id}`);
+      } catch {}
       setToast((e as Error).message || "Vote failed");
       setTimeout(()=>setToast(""), 2200);
-      // revert on 429 so user isn't stuck
-      if ((e as Error).message?.includes("Too many")) {
-        // keep selection but inform
-      }
     } finally {
       votedRef.current = false;
+      setVoting(false);
     }
   };
 
@@ -166,15 +180,16 @@ export default function PollClient({ id }: { id: string }) {
 
       {!showResults ? (
         <>
-          <div style={{marginTop:10, fontSize:12, fontWeight:800, letterSpacing:".06em", textTransform:"uppercase", color:"var(--muted)"}}>Tap to vote — no signup</div>
-          <VoteGrid options={poll.options} selectedId={selected} onSelect={onSelect} />
+          <div style={{marginTop:10, fontSize:12, fontWeight:800, letterSpacing:".06em", textTransform:"uppercase", color:"var(--muted)"}}>Tap to vote — no signup{voting && <span style={{marginLeft:8, textTransform:"none", letterSpacing:"0"}}> · Voting…</span>}</div>
+          <VoteGrid options={poll.options} selectedId={selected} onSelect={onSelect} disabled={voting} />
           <div style={{textAlign:"center", marginTop:10}}>
-            <button className="link-muted" onClick={()=>{ setShowResults(true); beacon("poll_view", id); }}>See results without voting →</button>
+            <button className="link-muted" disabled={voting} onClick={()=>{ setShowResults(true); beacon("poll_view", id); }}>See results without voting →</button>
           </div>
         </>
       ) : (
         <>
-          <VoteGrid options={poll.options} selectedId={selected} onSelect={onSelect} disabled={false} />
+          <VoteGrid options={poll.options} selectedId={selected} onSelect={onSelect} disabled={voting} />
+          {voting && <div style={{textAlign:"center", marginTop:8, fontSize:12, fontWeight:700, color:"var(--muted)"}}>Voting…</div>}
           <div className="results">
             <div className="results-head">
               <h3>Live results {hasVoted ? "· you voted" : ""}</h3>
