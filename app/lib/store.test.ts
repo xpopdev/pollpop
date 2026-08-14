@@ -219,4 +219,30 @@ describe("store — createPoll validation", () => {
     const optB = res.poll.options.find((o) => o.label === "B");
     expect(optB!.image_url).toBe("https://picsum.photos/seed/mock-fallback-b/600/600");
   });
+
+  it("enforces 5/hr create rate limit per IP in mock mode (5 succeed, 6th 429 RATE_LIMITED)", async () => {
+    resetMock();
+    const { createPoll } = await import("./store");
+    const ip = "6.6.6.6";
+    const mkOpts = [
+      { label: "A", image_url: "https://picsum.photos/seed/rateA/600/600" },
+      { label: "B", image_url: "https://picsum.photos/seed/rateB/600/600" },
+    ];
+    for (let i = 0; i < 5; i++) {
+      const res = await createPoll({
+        title: `rate limit test ${i + 1}`,
+        options: mkOpts,
+        creator_cookie: null,
+        ip,
+      });
+      expect("poll" in res, `expected poll on create ${i + 1}, got ${JSON.stringify(res)}`).toBe(true);
+    }
+    const limited = await createPoll({
+      title: "rate limit test 6 — should be throttled",
+      options: mkOpts,
+      creator_cookie: null,
+      ip,
+    });
+    expect(limited).toMatchObject({ status: 429, code: "RATE_LIMITED" });
+  });
 });
