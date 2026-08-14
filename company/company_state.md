@@ -5,16 +5,16 @@
 
 **Autonomy mode:** UNATTENDED
 
-**Current phase:** PHASE 3 — BUILD (0194cd8 green, continuous loop)
+**Current phase:** PHASE 3 — BUILD (004 Storage applied, perf bench next)
 
 **Last updated:** 2026-08-14
 
-**Active department / agent:** Engineering (Phase B loop — all checks green)
+**Active department / agent:** Engineering (perf bench) + QA
 
-**Summary:** All checks green on 0194cd8: test 11/11 vitest + e2e 2/2 + build + deploy + report-build-status. Fixes: storage data URL → poll-images bucket (004), TS implicit any, meta 2KB, CSP, CTA/grid, RLS 003, OG nodejs PNG. Prod pollpop-five live, Supabase 001-004 migrations ready (003/004 need dashboard apply), design exact 56c2bcf parchment. CI Node 24 ubuntu, next build will also green.
+**Summary:** 004_storage.sql applied per user (poll-images bucket public + RLS service write, anon read). Prior 003 RLS, 002 RPC done. CI 9eaefad docs + 0194cd8 all green (test 11/11 + e2e 2/2 + build + pages). Design exact 56c2bcf, prod pollpop-five live. Handoff 2026-08-14_build_to_build written. Auto loop Phase B — next perf bench (15s/500ms/2s) → quality-bar → §40.
 
-**In flight:** Next Phase B cycle — handoff + daily-report refresh + quality-bar → §40 loop
+**In flight:** Perf bench stub (engineering/performance) + next hardening
 
-**Blocked on:** nothing — auto loop
+**Blocked on:** nothing — auto loop, 004 now applied so data URL → Storage path live in prod
 
-**Next action:** handoff file, then daily-report update, then quality-bar re-score → milestone when 17/17
+**Next action:** Perf bench → quality-bar re-score → growth metrics → loop
