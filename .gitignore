@@ -4,6 +4,11 @@
 .env.*.local
 supabase/.env
 pollpop-validation/.env
+.x_cookies.json
+.x_cookies*
+x_cookies.json
+cookies.json
+cookies.txt
 
 # Personal Claude Code overrides — never shared
 .claude/settings.local.json
