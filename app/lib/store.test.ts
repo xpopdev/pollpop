@@ -385,4 +385,42 @@ describe("store — createPoll validation", () => {
     expect(new Set(ids).size).toBe(4);
     for (const o of fresh!.options) expect(o.poll_id).toBe(fresh!.id);
   });
+
+  it("create→fetch round-trip: 2 options, getPoll by id returns same poll with votes 0/0", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const res = await createPoll({
+      title: "Round-trip 2-opt",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/rt-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/rt-b/600/600" },
+      ],
+      creator_cookie: "rt-cid",
+      ip: "9.9.9.12",
+    });
+    expect("poll" in res, `expected poll, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    expect(res.poll.options).toHaveLength(2);
+    // initial votes are 0 on create response
+    expect(res.poll.options[0].votes).toBe(0);
+    expect(res.poll.options[1].votes).toBe(0);
+    expect(res.poll.options[0].label).toBe("A");
+    expect(res.poll.options[1].label).toBe("B");
+    expect(res.poll.options[0].position).toBe(0);
+    expect(res.poll.options[1].position).toBe(1);
+    // fetch via getPoll with correct id
+    const fetched = await getPoll(res.poll.id);
+    expect(fetched).not.toBeNull();
+    expect(fetched!.id).toBe(res.poll.id);
+    expect(fetched!.title).toBe("Round-trip 2-opt");
+    expect(fetched!.options).toHaveLength(2);
+    expect(fetched!.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(fetched!.options.map((o) => o.label)).toEqual(["A", "B"]);
+    expect(fetched!.options.map((o) => o.position)).toEqual([0, 1]);
+    expect(fetched!.options.map((o) => o.poll_id)).toEqual([res.poll.id, res.poll.id]);
+    // ids distinct
+    expect(fetched!.options[0].id).not.toBe(fetched!.options[1].id);
+    // unknown id returns null
+    expect(await getPoll("no-such-id-xyz")).toBeNull();
+  });
 });
