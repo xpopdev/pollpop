@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { recordEvent } from "@/lib/store";
+import { getPoll, recordEvent } from "@/lib/store";
 import { getCookieFromHeader } from "@/lib/dedup";
 import type { EventName } from "@/lib/types";
 
@@ -18,6 +18,12 @@ export async function POST(req: NextRequest) {
     const ref = body.ref ? String(body.ref).slice(0, 120) : (body.ref === null ? null : (new URL(req.url).searchParams.get("ref") || null));
     const meta = body.meta && typeof body.meta === "object" ? body.meta as Record<string, unknown> : null;
     const cookie = getCookieFromHeader(req.headers.get("cookie")) || (req.headers.get("x-pollpop-cid") ? String(req.headers.get("x-pollpop-cid")) : null);
+
+    // RT-BUG-06: validate poll_id exists if provided (global events have poll_id=null)
+    if (poll_id) {
+      const exists = await getPoll(poll_id);
+      if (!exists) return NextResponse.json({ error: "unknown poll_id" }, { status: 400 });
+    }
 
     // basic dedup: don't double-count poll_view/cta_view within same session tick — but allow votes
     await recordEvent({ name, poll_id, cookie, ref, meta });

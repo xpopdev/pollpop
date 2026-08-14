@@ -84,6 +84,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
           "content-type": "image/png",
           "cache-control": "public, max-age=3600",
           "x-pollpop-og": "png-sharp",
+          "x-content-type-options": "nosniff",
+          "content-security-policy": "default-src 'none'",
         },
       });
     } catch {
@@ -95,6 +97,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         "content-type": "image/svg+xml; charset=utf-8",
         "cache-control": "public, max-age=3600",
         "x-pollpop-og": "svg-nodejs",
+        "x-content-type-options": "nosniff",
+        "content-security-policy": "default-src 'none'",
       },
     });
   } catch {
@@ -105,6 +109,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         "content-type": "image/svg+xml; charset=utf-8",
         "cache-control": "public, max-age=3600",
         "x-pollpop-og": "svg-fallback-error",
+        "x-content-type-options": "nosniff",
+        "content-security-policy": "default-src 'none'",
       },
     });
   }

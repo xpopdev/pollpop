@@ -14,6 +14,11 @@ const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 8);
 // Key `create:${ip}` with 5 per hour window (same as mock branch lines 143-148)
 const supaCreateRate = new Map<string, number[]>();
 
+// RT-BUG-06: server dedup note — production should add Postgres unique constraint:
+//   create unique index events_dedup_hour on events (cookie, name, poll_id, date_trunc('hour', created_at))
+//   where name in ('poll_view','cta_view');
+// MVP: in-memory per-hour dedup below (mock Set + Supabase select check) — minimal, not heavy.
+
 // ---------- Mock store (runs when SUPABASE_URL not set) ----------
 type MockDB = {
   polls: Poll[];
@@ -21,6 +26,7 @@ type MockDB = {
   events: EventRow[];
   rate: Map<string, number[]>; // key -> timestamps
   ipVoteCount: Map<string, number>;
+  eventDedup: Set<string>; // RT-BUG-06: `${cookie}:${name}:${poll_id}:${hour}` per-hour dedup for poll_view/cta_view
 };
 
 function getMock(): MockDB {
@@ -32,6 +38,7 @@ function getMock(): MockDB {
       events: [],
       rate: new Map(),
       ipVoteCount: new Map(),
+      eventDedup: new Set(),
     };
     // Try hydrate from file (best-effort, dev convenience)
     try {
@@ -442,11 +449,36 @@ export async function voteOnPoll(input: {
 export async function recordEvent(row: { name: EventName; poll_id: string | null; cookie: string | null; ref: string | null; meta: Record<string, unknown> | null }) {
   if (!isSupabaseConfigured) {
     const db = getMock();
+    // RT-BUG-06: in-memory dedup for poll_view/cta_view per hour per cookie+poll — skip duplicate within same UTC hour
+    if ((row.name === "poll_view" || row.name === "cta_view") && row.cookie) {
+      const hour = new Date().toISOString().slice(0, 13); // YYYY-MM-DDTHH (UTC hour bucket)
+      const key = `${row.cookie}:${row.name}:${row.poll_id ?? ""}:${hour}`;
+      if (db.eventDedup.has(key)) return;
+      db.eventDedup.add(key);
+      if (db.eventDedup.size > 5000) {
+        const first = db.eventDedup.values().next().value as string | undefined;
+        if (first) db.eventDedup.delete(first);
+      }
+    }
     db.events.push({ id: nanoid(), name: row.name, poll_id: row.poll_id, cookie: row.cookie, ref: row.ref, meta: row.meta, created_at: new Date().toISOString() });
     persistMock();
     return;
   }
   const supa = supaService()!;
+  // RT-BUG-06: Supabase per-hour dedup — check recent event within same UTC hour before insert
+  if ((row.name === "poll_view" || row.name === "cta_view") && row.cookie) {
+    const hourStart = new Date();
+    hourStart.setMinutes(0, 0, 0);
+    hourStart.setMilliseconds(0);
+    const hourIso = hourStart.toISOString();
+    try {
+      let q: any = supa.from("events").select("id").eq("name", row.name).eq("cookie", row.cookie).gte("created_at", hourIso).limit(1);
+      if (row.poll_id) q = q.eq("poll_id", row.poll_id);
+      else q = q.is("poll_id", null);
+      const { data: dup } = await q.maybeSingle();
+      if (dup) return;
+    } catch {}
+  }
   await supa.from("events").insert(row as never);
 }
 
