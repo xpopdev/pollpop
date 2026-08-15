@@ -2030,4 +2030,52 @@ describe("store — createPoll validation", () => {
     expect(new URL(fresh!.options[0].image_url).search).toBe("");
     expect(new URL(fresh!.options[1].image_url).search).toBe("");
   });
+
+  it("rejects 2-option poll when any option image_url is an invalid URL 400 (store layer, mock mode, deterministic)", async () => {
+    resetMock();
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const { createPoll, getPoll } = await import("./store");
+    const goodA = { label: "A", image_url: "https://picsum.photos/seed/invalid-url-guard-a/600/600" };
+    const goodB = { label: "B", image_url: "https://picsum.photos/seed/invalid-url-guard-b/600/600" };
+
+    // first option is not a parseable URL — new URL() throws → store must 400 before Supabase/mock insert
+    const r1 = await createPoll({
+      title: "invalid url guard — 2 opts, first bad",
+      options: [{ label: "A", image_url: "ht!tp://[invalid" }, goodB],
+      creator_cookie: null,
+      ip: "36.36.36.1",
+    });
+    expect(r1).toMatchObject({ status: 400 });
+    expect((r1 as { error: string }).error).toMatch(/Invalid image URL/i);
+    // no poll persisted for that bad input
+    if ("poll" in (r1 as unknown as { poll: unknown })) throw new Error("should not have poll on invalid URL");
+
+    // second option invalid — also 400 (2-option poll must validate all options)
+    const r2 = await createPoll({
+      title: "invalid url guard — 2 opts, second bad",
+      options: [goodA, { label: "B", image_url: "://no-scheme" }],
+      creator_cookie: null,
+      ip: "36.36.36.2",
+    });
+    expect(r2).toMatchObject({ status: 400 });
+    expect((r2 as { error: string }).error).toMatch(/Invalid image URL/i);
+
+    // control: both URLs valid → 201 mock poll with 2 options, verbatim persistence via getPoll
+    const ok = await createPoll({
+      title: "invalid url guard — 2 opts, both valid",
+      options: [goodA, goodB],
+      creator_cookie: null,
+      ip: "36.36.36.3",
+    });
+    expect("poll" in ok, `expected poll for valid 2-opt, got ${JSON.stringify(ok)}`).toBe(true);
+    if (!("poll" in ok)) return;
+    expect(ok.poll.options).toHaveLength(2);
+    expect(ok.poll.options[0].image_url).toBe(goodA.image_url);
+    expect(ok.poll.options[1].image_url).toBe(goodB.image_url);
+    const fresh = await getPoll(ok.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.options).toHaveLength(2);
+    expect(fresh!.options[0].image_url).toBe(goodA.image_url);
+  });
 });
