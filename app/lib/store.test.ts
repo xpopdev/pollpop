@@ -1953,4 +1953,42 @@ describe("store — createPoll validation", () => {
     const refetch1 = await getPoll(r1.poll.id);
     expect(refetch1!.context).toBe("Help me pick one");
   });
+
+  it("poll creation with 2 options — id and created_at are non-empty strings (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const res = await createPoll({
+      title: "Which one? — id and created_at non-empty",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/id-created-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/id-created-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "34.34.34.1",
+    });
+    expect("poll" in res, `expected poll with 2 options, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    // exactly 2 options as requested
+    expect(res.poll.options).toHaveLength(2);
+    // poll id is non-empty string (mock mode: 8-char nanoid, deterministic)
+    expect(typeof res.poll.id).toBe("string");
+    expect(res.poll.id.length).toBeGreaterThan(0);
+    expect(res.poll.id.trim().length).toBeGreaterThan(0);
+    expect(res.poll.id).not.toBe("");
+    // created_at is non-empty string and valid ISO
+    expect(typeof res.poll.created_at).toBe("string");
+    expect(res.poll.created_at.length).toBeGreaterThan(0);
+    expect(res.poll.created_at.trim().length).toBeGreaterThan(0);
+    expect(res.poll.created_at).not.toBe("");
+    expect(Date.parse(res.poll.created_at)).not.toBeNaN();
+    expect(new Date(res.poll.created_at).toISOString()).toBe(res.poll.created_at);
+    // persisted via getPoll — same non-empty id and created_at
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.id).toBe(res.poll.id);
+    expect(fresh!.id.length).toBeGreaterThan(0);
+    expect(fresh!.created_at).toBe(res.poll.created_at);
+    expect(fresh!.created_at.length).toBeGreaterThan(0);
+    expect(fresh!.created_at).not.toBe("");
+  });
 });
