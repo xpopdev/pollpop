@@ -1588,4 +1588,82 @@ describe("store — createPoll validation", () => {
       expect((cross as { error: string }).error).toMatch(/Option not found/i);
     }
   });
+
+  it("voteOnPoll is idempotent when voting twice on same option — second vote same option keeps total 1, not duplicate (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, voteOnPoll, getPoll } = await import("./store");
+    const res = await createPoll({
+      title: "Idempotent same-option vote",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/idem-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/idem-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "28.28.28.1",
+    });
+    expect("poll" in res, `expected poll, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    const poll = res.poll;
+    expect(poll.options).toHaveLength(2);
+    const optA = poll.options[0];
+    const optB = poll.options[1];
+    expect(poll.options.map((o) => o.votes)).toEqual([0, 0]);
+
+    const voter = "idem-voter-1";
+    const ip = "28.28.28.10";
+
+    // first vote on A — total 1, A=1 B=0
+    const r1 = await voteOnPoll({ poll_id: poll.id, option_id: optA.id, voter_cookie: voter, ip });
+    expect("counts" in r1, `expected first vote to succeed, got ${JSON.stringify(r1)}`).toBe(true);
+    if (!("counts" in r1)) return;
+    expect(r1.total).toBe(1);
+    expect(r1.counts[optA.id]).toBe(1);
+    expect(r1.counts[optB.id]).toBe(0);
+
+    // verify persisted: one vote row, totals 1
+    const fresh1 = await getPoll(poll.id);
+    expect(fresh1).not.toBeNull();
+    expect(fresh1!.options.find((o) => o.id === optA.id)?.votes).toBe(1);
+    expect(fresh1!.options.find((o) => o.id === optB.id)?.votes).toBe(0);
+    expect(fresh1!.options.reduce((a, o) => a + o.votes, 0)).toBe(1);
+    const db1 = (globalThis as unknown as { __pollpop_mock?: { votes: unknown[] } }).__pollpop_mock;
+    expect(db1).toBeDefined();
+    expect(db1!.votes.filter((v: unknown) => (v as { poll_id: string }).poll_id === poll.id)).toHaveLength(1);
+
+    // second vote same option (idempotent) — must NOT duplicate, total stays 1
+    const r2 = await voteOnPoll({ poll_id: poll.id, option_id: optA.id, voter_cookie: voter, ip });
+    expect("counts" in r2, `expected second same-option vote to succeed (idempotent), got ${JSON.stringify(r2)}`).toBe(true);
+    if (!("counts" in r2)) return;
+    expect(r2.total).toBe(1);
+    expect(r2.counts[optA.id]).toBe(1);
+    expect(r2.counts[optB.id]).toBe(0);
+
+    // persisted still 1/0, no extra vote row
+    const fresh2 = await getPoll(poll.id);
+    expect(fresh2).not.toBeNull();
+    expect(fresh2!.options.find((o) => o.id === optA.id)?.votes).toBe(1);
+    expect(fresh2!.options.find((o) => o.id === optB.id)?.votes).toBe(0);
+    expect(fresh2!.options.reduce((a, o) => a + o.votes, 0)).toBe(1);
+    const db2 = (globalThis as unknown as { __pollpop_mock?: { votes: unknown[] } }).__pollpop_mock;
+    expect(db2!.votes.filter((v: unknown) => (v as { poll_id: string }).poll_id === poll.id)).toHaveLength(1);
+
+    // third vote same option again — still idempotent, total 1
+    const r3 = await voteOnPoll({ poll_id: poll.id, option_id: optA.id, voter_cookie: voter, ip });
+    expect("counts" in r3).toBe(true);
+    if (!("counts" in r3)) return;
+    expect(r3.total).toBe(1);
+    expect(r3.counts[optA.id]).toBe(1);
+    const fresh3 = await getPoll(poll.id);
+    expect(fresh3!.options.reduce((a, o) => a + o.votes, 0)).toBe(1);
+
+    // control: different voter can still vote same option — total becomes 2 (proves idempotency not a global cap)
+    const r4 = await voteOnPoll({ poll_id: poll.id, option_id: optA.id, voter_cookie: "idem-voter-2", ip: "28.28.28.11" });
+    expect("counts" in r4).toBe(true);
+    if (!("counts" in r4)) return;
+    expect(r4.total).toBe(2);
+    expect(r4.counts[optA.id]).toBe(2);
+    const fresh4 = await getPoll(poll.id);
+    expect(fresh4!.options.find((o) => o.id === optA.id)?.votes).toBe(2);
+    expect(fresh4!.options.reduce((a, o) => a + o.votes, 0)).toBe(2);
+  });
 });
