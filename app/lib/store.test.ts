@@ -2279,4 +2279,47 @@ describe("store — createPoll validation", () => {
     expect(refetch1!.options[0].label).toBe("Option A");
     expect(refetch1!.options[1].label).toBe("Option B");
   });
+
+  it("poll creation with 2 options has thumb_url null initially for each option (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const res = await createPoll({
+      title: "Which one? — thumb_url null 2-opt",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/thumb-null-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/thumb-null-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "44.44.44.1",
+    });
+    expect("poll" in res, `expected poll with 2 options, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    // exactly 2 options as requested
+    expect(res.poll.options).toHaveLength(2);
+    // thumb_url is null initially for each option (not undefined, not string)
+    expect(res.poll.options[0].thumb_url).toBeNull();
+    expect(res.poll.options[1].thumb_url).toBeNull();
+    for (const o of res.poll.options) {
+      expect(o.thumb_url).toBeNull();
+      expect(o.thumb_url).not.toBeUndefined();
+      expect(typeof o.thumb_url).not.toBe("string");
+    }
+    expect(res.poll.options.map((o) => o.thumb_url)).toEqual([null, null]);
+    // positions 0,1 and votes 0 untouched
+    expect(res.poll.options[0].position).toBe(0);
+    expect(res.poll.options[1].position).toBe(1);
+    expect(res.poll.options.map((o) => o.votes)).toEqual([0, 0]);
+    // persisted via getPoll — still null, not empty string
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.options).toHaveLength(2);
+    expect(fresh!.options[0].thumb_url).toBeNull();
+    expect(fresh!.options[1].thumb_url).toBeNull();
+    expect(fresh!.options.map((o) => o.thumb_url)).toEqual([null, null]);
+    for (const o of fresh!.options) expect(o.thumb_url).toBeNull();
+    expect(fresh!.options[0].thumb_url).not.toBe("");
+    expect(fresh!.options[1].thumb_url).not.toBe("");
+    expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(fresh!.options.map((o) => o.position)).toEqual([0, 1]);
+  });
 });
