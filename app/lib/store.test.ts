@@ -2767,4 +2767,43 @@ describe("store — createPoll validation", () => {
     expect(fresh!.options.find((o) => o.id === optB.id)?.votes).toBe(0);
     expect(fresh!.options.reduce((s, o) => s + o.votes, 0)).toBe(1);
   });
+
+  it("poll creation with 2 options — single vote for option A counts as 1 via voteOnPoll and getPoll (mock mode, deterministic) — file-based polish 58", async () => {
+    resetMock();
+    const { createPoll, voteOnPoll, getPoll } = await import("./store");
+    const res = await createPoll({
+      title: "Single vote 58 — 2 opts A count",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/single-vote-58-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/single-vote-58-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "56.56.56.1",
+    });
+    expect("poll" in res, `expected poll with 2 options, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    expect(res.poll.options).toHaveLength(2);
+    expect(res.poll.options.map((o) => o.votes)).toEqual([0, 0]);
+    const [optA, optB] = res.poll.options;
+    expect(optA.position).toBe(0);
+    expect(optB.position).toBe(1);
+    // single vote for option A → count 1 (core file-based polish: no 7-day data needed)
+    const voteRes = await voteOnPoll({
+      poll_id: res.poll.id,
+      option_id: optA.id,
+      voter_cookie: "single-vote-58-voter-1",
+      ip: "56.56.56.2",
+    });
+    expect("counts" in voteRes, `expected counts after single vote, got ${JSON.stringify(voteRes)}`).toBe(true);
+    if (!("counts" in voteRes)) return;
+    expect(voteRes.total).toBe(1);
+    expect(voteRes.counts[optA.id]).toBe(1);
+    expect(voteRes.counts[optB.id]).toBe(0);
+    // persisted via getPoll — A 1, B 0, total 1
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.options.find((o) => o.id === optA.id)?.votes).toBe(1);
+    expect(fresh!.options.find((o) => o.id === optB.id)?.votes).toBe(0);
+    expect(fresh!.options.reduce((s, o) => s + o.votes, 0)).toBe(1);
+  });
 });
