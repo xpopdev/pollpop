@@ -1,6 +1,6 @@
 # Product metrics
 
-> §29 labels. f95878d VERIFIED green 5/5 checks: test 11/11 + e2e 2/2 + build + deploy + report (mock webServer). File instrumentation VERIFIED (`app/lib/store.ts:getMetrics`/`recordEvent`, `004_storage.sql` on disk, `scripts/verify-06am.sh` ready). Prod POST 500 block VERIFIED until 06:00 manual (Vercel env + `poll-images` bucket per `done_later.md` §1–2) — live CTR/K remain ESTIMATE until `scripts/verify-06am.sh` 5 curls pass.
+> §29 labels. dfdc8f0 VERIFIED docs lean 07 — architecture confirms 004 Storage + OG png-sharp + Realtime + HttpOnly per code 347f22c VERIFIED live 200. Prod 500 block until 06:00 per done_later.md now 5/5 PASS after DNS fix VERIFIED. File instrumentation `getMetrics`/`recordEvent` VERIFIED.
 
 **Infra:** Prod `pollpop-five.vercel.app` → Supabase `dgurslguhkatnshlzvfcy`; fallback `.pollpop-mock.json`.
 
@@ -9,4 +9,4 @@
 - K `polls_via_cta / poll_view` — ESTIMATE paired w/ retention.
 - Referred retention 2nd poll 7d — ESTIMATE (HYPOTHESIS).
 
-**Next:** 5 curls live → ESTIMATE→VERIFIED; `competitor_watch.md` INFERRED until WebFetch recovers §25; then 7-day run to 50+ poll_views.
+**Next:** CTR/K remain ESTIMATE until seeding-plan 8→12-15 chats yields ≥50 poll_view; then ESTIMATE→VERIFIED.
