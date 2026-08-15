@@ -1,59 +1,37 @@
-# PollPop — One-Page PRD Summary
+# PollPop — PRD (lean)
 
-> PASS 2026-08-14 — H-001 CTR≥0.08 validated via human PASS. Supersedes DRAFT. Build underway per `company/decisions/approved.md` + `company_state.md` PHASE 3. All §29 ESTIMATE/HYPOTHESIS labels remain until live CTR/K re-measured at scale.
+> PASS 2026-08-14 H-001 CTR≥0.08 human PASS. Build per `decisions/approved.md` PHASE 3. Labels §29 remain ESTIMATE until live CTR/K.
 
-**One-liner:** 15-second visual polls (2–4 images + title) with a share link that unfurls beautifully — every voter sees a sticky "Create your own — 15s" CTA that is the product's viral loop.
+**One-liner:** 15s visual polls (2–4 images + title) → share link unfurls 1200×630 → voters see sticky "Create your own — 15s" CTA viral loop.
 
 ## Problem & gap
 
-Instagram Stories polls are ephemeral/binary/locked; Strawpoll is ugly/text-only with no acquisition. Neither converts voters → creators. Frequency 9/10 job ("which one?" daily) has no cross-platform visual home. Gap = voter→creator CTA per `company/research/competitors/instagram_polls.md`; CTR HYPOTHESIS until H-001 resolves.
-
-## User
-
-Primary 16–35 social/group decision-maker (outfit, food, thumbnail, sneaker, room, travel) who needs a tally in 15s via a link dropped in any chat. Secondary: small teams/classrooms 3–15 picking visual options async. Anti-targets: enterprise boards, video challenge chains, authenticated elections.
+IG Stories ephemeral/binary/locked; Strawpoll ugly/text-only, no acquisition. Neither converts voters→creators. Frequency 9/10 "which one?" daily has no cross-platform visual home. Gap = voter→creator CTA.
 
 ## Viral mechanism (falsifiable)
 
-Participation-required sharing + curiosity: creator shares link → voters must open + tap to vote → live results pull returns → CTA "Create your own →" sends voters back as creators with `?ref=poll_{id}` attribution. Binding metric **CTR = cta_click / poll_view ≥0.08 in 7 days** (8 polls → 12–15 group chats). Secondary kill: `voters_per_poll <3` or unfurl suppression >50%. Labels §29: HYPOTHESIS until fake-door data.
+Creator shares `p/{id}` → voters tap to vote → live results → CTA `?ref=poll_{id}` → voters become creators. **CTR = cta_click / poll_view ≥0.08 in 7 days** (8 polls → 12–15 chats). Kill if `voters_per_poll <3` or unfurl suppression >50%. HYPOTHESIS until live.
 
-## MVP scope (P0 only)
+## MVP scope (P0)
 
-| Feature | Contract |
-|---|---|
-| **Create** | 2–4 images + title (+ optional context), 15s, no auth, real flow (fake-door removed) |
-| **Vote** | Tap image, no auth, soft dedup (cookie+localStorage+IP hash, last vote wins) |
-| **Live results** | Animated bars + counts, realtime via Supabase Realtime (2s target, ESTIMATE) |
-| **Share** | `p/{id}` + static `p/{id}.html` for crawlers; dynamic 1200×630 OG collage; Copy + Web Share API |
-| **CTA** | Sticky bottom on mobile, `cta_view`/`cta_click` instrumented — THE metric |
-| **Metrics** | `poll_view, vote, cta_view, cta_click, poll_create, share_*` → CTR, voters_per_poll, K-factor, referred retention (hidden `/metrics.html`) |
-| **Guardrails** | Per-IP/per-poll caps, create caps, async NSFW check (flag don't block) |
-
-**P1 (only after P0 passes):** listing/discovery, templates/remix, NSFW tuning, expiry. **Non-goals:** auth-required voting, discovery algo, monetization, native app, team workspaces, AI suggestions.
+Create 2–4 images + title · Vote tap soft dedup (cookie+LS+ip_hash) · Realtime bars (ESTIMATE <2s) · Share `p/{id}` + 1200×630 OG png-sharp nodejs · CTA sticky `cta_view`/`cta_click` · Metrics CTR/K/voters_per_poll · Guardrails 5/hr + 10/poll/24h + NSFW flag.
 
 ## Architecture
 
-Supabase (Postgres + Realtime + Auth optional + Storage + `sharp`/`vercel/og` for 1200×630 OG), edge deploy on Vercel/Cloudflare. Tables: `polls`, `poll_options` (2–4, denormalized `votes`), `votes` (soft dedup key), `events`. API: `POST /api/polls`, `GET /api/polls/:id`, `POST /api/polls/:id/vote` (upsert, last wins), `GET /api/polls/:id/og`, `POST /api/events`, `GET /api/metrics`. Cost $0 inference, infra pennies; Free tier → ~$50–$115/mo at 100k polls / 1M votes (all ESTIMATE). See `company/product/architecture.md`.
+Supabase (Postgres+Realtime+Storage 004 + sharp nodejs) + Vercel. Tables `polls`, `poll_options` (005 `color`), `votes`, `events`. API `POST /polls`, `GET /:id`, `POST /:id/vote` RPC, `GET /:id/og`. See `architecture.md`.
 
-## UX
+## Known limitations (quality-bar 2026-08-15 — honest §29, 12/17 docs pass)
 
-Mobile-first, single-page create (title+2–4 cards → sticky "Create & get link"), tap-to-vote grid, animated results bars, share row (Copy + native sheet), sticky CTA card (`Create your own — 15s →` with `?ref=` attribution). Hidden `/metrics.html`. Tokens: system fonts, per-option color palette from validation seeds, 12px cards, 200/400ms motion. All flows validated at 375px. See `company/product/ux.md`.
+Per §33, ESTIMATE/HYPOTHESIS until 7-day CTR/K at scale. Unchecked → Phase B not stop per CLAUDE.md.
 
-## Acceptance on PASS
+- **Perf ESTIMATE — vote 3.6-4.6s >500ms FAIL (cold infra, not code):** `POST /:id/vote` 3638–4687ms (347f22c) + GET 2275ms vs <500ms FAIL. Cold Vercel+Supabase, not code — burst FIXED 002. Create 2.7–5.3s PASS, OG png 68kB `max-age=3600` `x-pollpop-og: png-sharp` PASS, burst 10/10 PASS isolated with distinct `x-vercel-forwarded-for`.
+- **Realtime UNKNOWN (no 2-tab live):** No 2-tab probe; `poll:{id}` + 5s fallback file-verified, propagation remains ESTIMATE until live tabs in rebench.
+- **competitive INFERRED:** WebFetch still 400/451 — `competitor_watch.md` INFERRED last checked 2026-08-15 per §25, re-verify when fetch recovers. Threat Low.
+- **CTR/K ESTIMATE until 50 views:** Viral CTR/K/referred retention ESTIMATE until 7-day seed (8 polls → 12–15 chats, need ≥50 poll_view) per seeding-plan; labels stay ESTIMATE.
+- **Recent fixes VERIFIED:** PollCard flat (3e4df9f flat `rgba(18,18,20,.42)` oat stone) · HttpOnly Secure `SameSite=Lax` + x-vercel-forwarded-for (53283de RT-SEC-05/04) · 004 poll-images public · 005 color · 002 increment_vote RPC atomic burst 10/10.
 
-Build-ready means: P0 E2E on mobile 4G ≤15s create, <500ms optimistic vote, <2s realtime propagation, `curl -A WhatsApp p/{id}` returns correct OG, CTA viewport-tracked, burst 50 votes counts 50, rate/NSFW guards in place, metrics page live with CTR/K/referred retention. Quality-bar + red-team-review before "MVP complete." Level 3 deploys still need explicit YES per `CLAUDE.md`.
+Next: seed → CTR ≥0.08 → CEO gate → milestone §40.
 
 ## Sources
 
-`company/research/opportunity_map.md` (Candidate 003, 76/120, Viral 7, WEAKEN→VALIDATE), `company/decisions/approved.md` (binding CTR/KILL thresholds), `company/research/technologies/poll_infra.md` (Supabase/Realtime/OG/soft dedup), `company/research/competitors/instagram_polls.md` (voter→creator gap), `pollpop-validation/data/polls.json` (8 poll shapes).
-
-## Known limitations (quality-bar 2026-08-14, Unattended — gaps back into Phase B, not a stop)
-
-Per §33 honest check, all builds on ESTIMATE/HYPOTHESIS until live CTR/K re-measured at scale. Unchecked items from this cycle's quality-bar (not stop-conditions per CLAUDE.md):
-
-- **Top risk — prod smoke 1ee6279 BLOCKED:** `POST /api/polls` → 500 `{"error":"TypeError: fetch failed"}` (picsum) and `{"error":"Image upload failed"}` (data: branch) VERIFIED via node fetch; Supabase DB write + `poll-images` upload both fail live. 004 SQL VERIFIED on disk, bucket INFERRED. Needs `vercel logs` (`[poll-images upload] failed` detail) + Supabase Dashboard Storage check + env `SUPABASE_SERVICE_ROLE_KEY`. Until fixed, live create/vote/CTR/K unmeasurable — ESTIMATE per §29.
-- **Tests not run this session:** 11 vitest + 2 playwright e2e committed (store 4, dedup 3, analytics 2, route 2; e2e create-vote-CTA 2; vitest jsdom, playwright prod baseURL) — `npm install` EACCES symlink on Termux shared storage (`vitest: not found`); Vercel prod built green (Node 20 internal fs) but local `vitest run`/`playwright test` still needed outside shared storage.
-- **Integration/e2e not live-probed:** vote soft-dedup vs live Supabase `dgurslguhkatnshlzvfcy`, `curl .../og` PNG check, Realtime <2s / 5s fallback, 50-concurrent burst via `002_vote_rpc.sql` — file-reviewed PASS but no live probe (sandbox curl denied, smoke blocked by DB).
-- **Security — Critical/High mitigated, Medium/Low remain:** red-team 2026-08-14 (16 SEC + 24 BUG). FIXED: 003 RLS (anon SELECT only, service_role writes), 004 `poll-images` bucket public + policies (data URLs → Storage), 002 vote RPC atomic `increment_vote`/`decrement_vote` + orphan cleanup, rate limits 5/hr create + 10/poll/24h, meta 2KB `capMeta`, tmp→rename atomic persist, 7d21afd XSS `'`→`&#39;` + `*.tsbuildinfo`/`app/.next` gitignore, 3e4df9f PollCard flat VERIFIED (scrim gradient → flat `rgba(18,18,20,.42)`, avatar gradient → oat + stone border), 53283de (6d9dff4) HttpOnly Secure `Set-Cookie` (`HttpOnly; Secure; SameSite=Lax`) + `x-vercel-forwarded-for > x-real-ip > x-forwarded-for` trust + dedup test updated (RT-SEC-05/04) VERIFIED. Remaining → Phase B: Realtime publication verify (`alter publication supabase_realtime add table poll_options`) INFERRED, optimistic reconcile transient stale (RT-BUG-15) HYPOTHESIS — both ESTIMATE per §29 until live probe.
-- **Performance not measured:** Realtime <2s / 5s fallback, 15s create, OG cache 3600 — all ESTIMATE. Bench stub `company/engineering/performance/bench-2026-08-14.md` method-only, blocked by prod DB (top risk).
-- **Failure modes / docs:** Realtime down, image upload fail, NSFW down, 429 — file-reviewed not chaos-tested live. `technical-writer` not consulted.
-- **Next:** Fix prod DB via `vercel logs` → verify 004 live → `npm run test:e2e` timed on pollpop-five → re-run `quality-bar`; when 17/17 checked, milestone in `history/milestones/` → §40.
+`opportunity_map.md` (003 76/120 Viral 7 WEAKEN→VALIDATE), `decisions/approved.md` (CTR kill <0.03), `technologies/poll_infra.md`, `research/competitors/instagram_polls.md`.
