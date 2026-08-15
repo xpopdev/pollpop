@@ -2078,4 +2078,36 @@ describe("store — createPoll validation", () => {
     expect(fresh!.options).toHaveLength(2);
     expect(fresh!.options[0].image_url).toBe(goodA.image_url);
   });
+
+  it("getPoll returns poll with status active and votes 0 initially for 2-option poll (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const res = await createPoll({
+      title: "Status active votes 0 — getPoll check",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/status-active-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/status-active-b/600/600" },
+      ],
+      creator_cookie: "status-active-cid",
+      ip: "37.37.37.1",
+    });
+    expect("poll" in res, `expected poll, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    // create response has status active and votes 0
+    expect(res.poll.status).toBe("active");
+    expect(res.poll.options).toHaveLength(2);
+    expect(res.poll.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(res.poll.options.reduce((a, o) => a + o.votes, 0)).toBe(0);
+    // persisted via getPoll — same status and zero votes
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.id).toBe(res.poll.id);
+    expect(fresh!.status).toBe("active");
+    expect(fresh!.options).toHaveLength(2);
+    expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(fresh!.options.reduce((a, o) => a + o.votes, 0)).toBe(0);
+    for (const o of fresh!.options) expect(o.votes).toBe(0);
+    // also verify each option's poll_id linkage still correct (not cross-wired)
+    for (const o of fresh!.options) expect(o.poll_id).toBe(fresh!.id);
+  });
 });
