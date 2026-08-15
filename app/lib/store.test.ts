@@ -2322,4 +2322,48 @@ describe("store — createPoll validation", () => {
     expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0]);
     expect(fresh!.options.map((o) => o.position)).toEqual([0, 1]);
   });
+
+  it("poll creation with 2 options is listable — mock db polls length increments and new poll retrievable via getPoll (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll, getMetrics } = await import("./store");
+    // initial listing — seed polls are 4 (fit-check, brunch-crew, logo-battle, thumbnail-wars)
+    const m1 = await getMetrics();
+    expect(m1.totals.polls).toBe(4);
+    const gBefore = (globalThis as unknown as { __pollpop_mock?: { polls: { id: string }[] } }).__pollpop_mock;
+    expect(gBefore?.polls.length).toBe(4);
+    // create a new 2-option poll — minimal listing test
+    const res = await createPoll({
+      title: "Which fit — listing test?",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/list-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/list-b/600/600" },
+      ],
+      creator_cookie: "list-cid",
+      ip: "45.45.45.1",
+    });
+    expect("poll" in res, `expected poll with 2 options, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    expect(res.poll.options).toHaveLength(2);
+    expect(res.poll.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(res.poll.options.map((o) => o.position)).toEqual([0, 1]);
+    // listing via direct mock db polls length — increments by 1 (seed 4 → 5)
+    const gAfter = (globalThis as unknown as { __pollpop_mock?: { polls: { id: string }[] } }).__pollpop_mock;
+    expect(gAfter?.polls.length).toBe(5);
+    expect(gAfter?.polls.length).toBe((gBefore?.polls.length ?? 4) + 1);
+    // listing via getMetrics totals.polls (no getAllPolls exported — this is the listable surface)
+    const m2 = await getMetrics();
+    expect(m2.totals.polls).toBe(5);
+    expect(m2.totals.polls).toBe(m1.totals.polls + 1);
+    // new poll is at head (unshift) and retrievable via getPoll
+    expect(gAfter?.polls[0]?.id).toBe(res.poll.id);
+    const fresh2 = await getPoll(res.poll.id);
+    expect(fresh2).not.toBeNull();
+    expect(fresh2!.id).toBe(res.poll.id);
+    expect(fresh2!.options).toHaveLength(2);
+    expect(fresh2!.options.map((o) => o.label)).toEqual(["A", "B"]);
+    // seed poll still retrievable — listing didn't evict seeds
+    expect(await getPoll("fit-check")).not.toBeNull();
+    const m3 = await getMetrics();
+    expect(m3.totals.polls).toBe(5);
+  });
 });
