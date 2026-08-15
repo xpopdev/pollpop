@@ -2536,4 +2536,42 @@ describe("store — createPoll validation", () => {
     expect(fetched!.options.map((o) => o.position)).toEqual([0, 1]);
     for (const o of fetched!.options) expect(o.poll_id).toBe(fetched!.id);
   });
+
+  it("poll creation with 2 options can be listed via getPoll with correct title (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll, getMetrics } = await import("./store");
+    const title = "Which one wins? — list via getPoll title";
+    const freshIp = "50.50.50.101";
+    const before = await getMetrics();
+    expect(before.totals.polls).toBe(4);
+    const res = await createPoll({
+      title,
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/list-title-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/list-title-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: freshIp,
+    });
+    expect("poll" in res, `expected poll with 2 options, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    expect(res.poll.options).toHaveLength(2);
+    expect(res.poll.title).toBe(title);
+    expect(res.poll.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(res.poll.options.map((o) => o.position)).toEqual([0, 1]);
+    // listable: fetched via getPoll retains correct title
+    const fetched = await getPoll(res.poll.id);
+    expect(fetched).not.toBeNull();
+    expect(fetched!.id).toBe(res.poll.id);
+    expect(fetched!.title).toBe(title);
+    expect(fetched!.title).toBe(res.poll.title);
+    expect(fetched!.options).toHaveLength(2);
+    expect(fetched!.options.map((o) => o.label)).toEqual(["A", "B"]);
+    expect(fetched!.options.map((o) => o.position)).toEqual([0, 1]);
+    expect(fetched!.options.map((o) => o.votes)).toEqual([0, 0]);
+    for (const o of fetched!.options) expect(o.poll_id).toBe(fetched!.id);
+    // listable via getMetrics totals.polls increments by 1
+    const after = await getMetrics();
+    expect(after.totals.polls).toBe(before.totals.polls + 1);
+  });
 });
