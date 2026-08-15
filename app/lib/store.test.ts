@@ -1759,4 +1759,54 @@ describe("store — createPoll validation", () => {
     expect(fresh!.id).toBe(res.poll.id);
     expect(fresh!.options.map((o) => o.poll_id)).toEqual([res.poll.id, res.poll.id]);
   });
+
+  it("poll creation with 2 options — positions 0 and 1 and votes are numbers (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const res = await createPoll({
+      title: "Position and votes type check",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/pos-votes-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/pos-votes-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "31.31.31.1",
+    });
+    expect("poll" in res, `expected poll with 2 options, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    // exactly 2 options
+    expect(res.poll.options).toHaveLength(2);
+    const [optA, optB] = res.poll.options;
+    // positions are 0 and 1 in order
+    expect(optA.position).toBe(0);
+    expect(optB.position).toBe(1);
+    expect(res.poll.options.map((o) => o.position)).toEqual([0, 1]);
+    // votes are numbers (deterministic — mock path initializes to 0)
+    expect(typeof optA.votes).toBe("number");
+    expect(typeof optB.votes).toBe("number");
+    expect(Number.isFinite(optA.votes)).toBe(true);
+    expect(Number.isFinite(optB.votes)).toBe(true);
+    expect(optA.votes).toBe(0);
+    expect(optB.votes).toBe(0);
+    for (const o of res.poll.options) {
+      expect(typeof o.votes).toBe("number");
+      expect(typeof o.position).toBe("number");
+      expect(Number.isInteger(o.votes)).toBe(true);
+      expect(Number.isInteger(o.position)).toBe(true);
+    }
+    // persisted via getPoll — same positions and numeric votes
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.options).toHaveLength(2);
+    expect(fresh!.options[0].position).toBe(0);
+    expect(fresh!.options[1].position).toBe(1);
+    expect(fresh!.options.map((o) => o.position)).toEqual([0, 1]);
+    expect(typeof fresh!.options[0].votes).toBe("number");
+    expect(typeof fresh!.options[1].votes).toBe("number");
+    expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0]);
+    for (const o of fresh!.options) {
+      expect(typeof o.votes).toBe("number");
+      expect(Number.isFinite(o.votes)).toBe(true);
+    }
+  });
 });
