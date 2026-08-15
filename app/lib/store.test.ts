@@ -2574,4 +2574,37 @@ describe("store — createPoll validation", () => {
     const after = await getMetrics();
     expect(after.totals.polls).toBe(before.totals.polls + 1);
   });
+
+  it("poll creation with 2 options — fetch via getPoll and total votes is 0 (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const res = await createPoll({
+      title: "2-opt total votes zero — getPoll check",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/total-votes-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/total-votes-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "51.51.51.1",
+    });
+    expect("poll" in res, `expected poll with 2 options, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    // 2 options exactly — new coverage for total votes
+    expect(res.poll.options).toHaveLength(2);
+    expect(res.poll.options[0].position).toBe(0);
+    expect(res.poll.options[1].position).toBe(1);
+    // poll can be fetched via getPoll with matching id
+    const fetched = await getPoll(res.poll.id);
+    expect(fetched).not.toBeNull();
+    expect(fetched!.id).toBe(res.poll.id);
+    expect(fetched!.options).toHaveLength(2);
+    // total votes is 0 — sum of votes across options (and each option is 0)
+    const totalOnCreate = res.poll.options.reduce((s, o) => s + o.votes, 0);
+    expect(totalOnCreate).toBe(0);
+    expect(res.poll.options.map((o) => o.votes)).toEqual([0, 0]);
+    const totalFetched = fetched!.options.reduce((s, o) => s + o.votes, 0);
+    expect(totalFetched).toBe(0);
+    expect(fetched!.options.map((o) => o.votes)).toEqual([0, 0]);
+    for (const o of fetched!.options) expect(o.poll_id).toBe(fetched!.id);
+  });
 });
