@@ -1,12 +1,11 @@
 # Product metrics
 
-> §29 labels. dfdc8f0 VERIFIED docs lean 07 — architecture confirms 004 Storage + OG png-sharp + Realtime + HttpOnly per code 347f22c VERIFIED live 200. Prod 500 block until 06:00 per done_later.md now 5/5 PASS after DNS fix VERIFIED. File instrumentation `getMetrics`/`recordEvent` VERIFIED.
+> §29 labels.
 
-**Infra:** Prod `pollpop-five.vercel.app` → Supabase `dgurslguhkatnshlzvfcy`; fallback `.pollpop-mock.json`.
+**Verify 2026-08-15 VERIFIED:** `verify-06am.sh` 5/5 PASS — POST picsum 201, POST data: 201 →poll-images, GET poll 200 (2 options), GET metrics 200 totals, GET og 200 png-sharp + x-pollpop-og.
 
-**Binding (P0-6):**
-- CTR `cta_click / poll_view` — ESTIMATE ≥0.08 PASS; <50 views no verdict.
-- K `polls_via_cta / poll_view` — ESTIMATE paired w/ retention.
-- Referred retention 2nd poll 7d — ESTIMATE (HYPOTHESIS).
+**Instrumentation VERIFIED:** File `getMetrics`/`recordEvent` works (fallback `.pollpop-mock.json`; prod Supabase `dgurslguhkatnshlzvfcy` on `pollpop-five.vercel.app`).
 
-**Next:** CTR/K remain ESTIMATE until seeding-plan 8→12-15 chats yields ≥50 poll_view; then ESTIMATE→VERIFIED.
+**Live CTR/K ESTIMATE:** CTR `cta_click/poll_view` ≥0.08 and K `polls_via_cta/poll_view` paired w/ retention — both ESTIMATE until seeding-plan 7-day (8 polls→12-15 chats) yields ≥50 poll_view, then ESTIMATE→VERIFIED. Referred retention 7d HYPOTHESIS.
+
+**Docs:** Architecture 004 Storage + OG png-sharp + Realtime + HttpOnly VERIFIED per code 347f22c; competitive INFERRED per competitor_watch.md.
