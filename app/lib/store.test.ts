@@ -10,8 +10,10 @@ function resetMock() {
   try {
     const file = path.join(process.cwd(), ".pollpop-mock.json");
     if (fs.existsSync(file)) fs.unlinkSync(file);
+    if (fs.existsSync(`${file}.tmp`)) fs.unlinkSync(`${file}.tmp`);
     const appFile = path.join(process.cwd(), "app", ".pollpop-mock.json");
     if (fs.existsSync(appFile)) fs.unlinkSync(appFile);
+    if (fs.existsSync(`${appFile}.tmp`)) fs.unlinkSync(`${appFile}.tmp`);
   } catch {}
 }
 
@@ -2325,13 +2327,21 @@ describe("store — createPoll validation", () => {
 
   it("poll creation with 2 options is listable — mock db polls length increments and new poll retrievable via getPoll (mock mode, deterministic)", async () => {
     resetMock();
+    // harden: clear tmp left by persistMock race and re-clear global to guarantee fresh seed
+    try {
+      fs.unlinkSync(path.join(process.cwd(), ".pollpop-mock.json.tmp"));
+    } catch {}
+    (globalThis as unknown as Record<string, unknown>).__pollpop_mock = undefined;
     const { createPoll, getPoll, getMetrics } = await import("./store");
-    // initial listing — seed polls are 4 (fit-check, brunch-crew, logo-battle, thumbnail-wars)
     const m1 = await getMetrics();
-    expect(m1.totals.polls).toBe(4);
     const gBefore = (globalThis as unknown as { __pollpop_mock?: { polls: { id: string }[] } }).__pollpop_mock;
-    expect(gBefore?.polls.length).toBe(4);
-    // create a new 2-option poll — minimal listing test
+    const beforeLen = gBefore?.polls.length ?? m1.totals.polls;
+    const beforeTotal = m1.totals.polls;
+    expect(beforeLen).toBe(4);
+    expect(beforeTotal).toBe(4);
+    expect(gBefore?.polls.length).toBe(beforeLen);
+    // fresh IP never used elsewhere in suite — avoids 5/hr create rate limit
+    const freshIp = "45.45.45.101";
     const res = await createPoll({
       title: "Which fit — listing test?",
       options: [
@@ -2339,21 +2349,19 @@ describe("store — createPoll validation", () => {
         { label: "B", image_url: "https://picsum.photos/seed/list-b/600/600" },
       ],
       creator_cookie: "list-cid",
-      ip: "45.45.45.1",
+      ip: freshIp,
     });
     expect("poll" in res, `expected poll with 2 options, got ${JSON.stringify(res)}`).toBe(true);
     if (!("poll" in res)) return;
     expect(res.poll.options).toHaveLength(2);
     expect(res.poll.options.map((o) => o.votes)).toEqual([0, 0]);
     expect(res.poll.options.map((o) => o.position)).toEqual([0, 1]);
-    // listing via direct mock db polls length — increments by 1 (seed 4 → 5)
+    // listing via direct mock db polls length — increments by exactly 1 from captured primitive (not alias)
     const gAfter = (globalThis as unknown as { __pollpop_mock?: { polls: { id: string }[] } }).__pollpop_mock;
-    expect(gAfter?.polls.length).toBe(5);
-    expect(gAfter?.polls.length).toBe((gBefore?.polls.length ?? 4) + 1);
+    expect(gAfter?.polls.length).toBe(beforeLen + 1);
     // listing via getMetrics totals.polls (no getAllPolls exported — this is the listable surface)
     const m2 = await getMetrics();
-    expect(m2.totals.polls).toBe(5);
-    expect(m2.totals.polls).toBe(m1.totals.polls + 1);
+    expect(m2.totals.polls).toBe(beforeTotal + 1);
     // new poll is at head (unshift) and retrievable via getPoll
     expect(gAfter?.polls[0]?.id).toBe(res.poll.id);
     const fresh2 = await getPoll(res.poll.id);
@@ -2364,6 +2372,6 @@ describe("store — createPoll validation", () => {
     // seed poll still retrievable — listing didn't evict seeds
     expect(await getPoll("fit-check")).not.toBeNull();
     const m3 = await getMetrics();
-    expect(m3.totals.polls).toBe(5);
+    expect(m3.totals.polls).toBe(beforeTotal + 1);
   });
 });

@@ -93,9 +93,15 @@ function persistMock() {
     const tmp = `${file}.tmp`;
     const db = getMock();
     const json = JSON.stringify({ polls: db.polls, votes: db.votes, events: db.events }, null, 2);
+    try {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+    } catch {}
     fs.writeFileSync(tmp, json);
     fs.renameSync(tmp, file);
   } catch (e) {
+    // ENOENT can happen under burst/race (tmp missing or dir race) — mock persistence is best-effort, don't fail request
+    const code = (e as NodeJS.ErrnoException)?.code;
+    if (code === "ENOENT") return;
     console.error("[persistMock] failed", e);
   }
 }
