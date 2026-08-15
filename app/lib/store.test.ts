@@ -1881,4 +1881,76 @@ describe("store — createPoll validation", () => {
     const refetch1 = await getPoll(r1.poll.id);
     expect(refetch1!.category).toBe("Design");
   });
+
+  it("poll creation with context with leading/trailing spaces is trimmed (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const good2 = [
+      { label: "A", image_url: "https://picsum.photos/seed/ctx-trim-a/600/600" },
+      { label: "B", image_url: "https://picsum.photos/seed/ctx-trim-b/600/600" },
+    ];
+    // leading/trailing spaces — store does input.context?.trim() || null (mirrors category trim)
+    const r1 = await createPoll({
+      title: "Context trim — spaces",
+      context: "  Help me pick one  ",
+      options: good2,
+      creator_cookie: null,
+      ip: "33.33.33.1",
+    });
+    expect("poll" in r1, `expected poll, got ${JSON.stringify(r1)}`).toBe(true);
+    if (!("poll" in r1)) return;
+    expect(r1.poll.context).toBe("Help me pick one");
+    expect(r1.poll.context).not.toBe("  Help me pick one  ");
+    expect(typeof r1.poll.context).toBe("string");
+    const fresh1 = await getPoll(r1.poll.id);
+    expect(fresh1).not.toBeNull();
+    expect(fresh1!.context).toBe("Help me pick one");
+
+    // tabs + multiple spaces + interior preserved, ends trimmed
+    const r2 = await createPoll({
+      title: "Context trim — tabs",
+      context: "\t  Help me pick for dinner — vote! \t ",
+      options: good2,
+      creator_cookie: null,
+      ip: "33.33.33.2",
+    });
+    expect("poll" in r2, `expected poll, got ${JSON.stringify(r2)}`).toBe(true);
+    if (!("poll" in r2)) return;
+    expect(r2.poll.context).toBe("Help me pick for dinner — vote!");
+    const fresh2 = await getPoll(r2.poll.id);
+    expect(fresh2!.context).toBe("Help me pick for dinner — vote!");
+
+    // whitespace-only collapses to null ("   ".trim() || null)
+    const r3 = await createPoll({
+      title: "Context trim — whitespace only null",
+      context: "   ",
+      options: good2,
+      creator_cookie: null,
+      ip: "33.33.33.3",
+    });
+    expect("poll" in r3, `expected poll, got ${JSON.stringify(r3)}`).toBe(true);
+    if (!("poll" in r3)) return;
+    expect(r3.poll.context).toBeNull();
+    expect(r3.poll.context).not.toBe("");
+    const fresh3 = await getPoll(r3.poll.id);
+    expect(fresh3!.context).toBeNull();
+
+    // no leading/trailing — unchanged, proves not over-trimming interior double spaces
+    const r4 = await createPoll({
+      title: "Context trim — interior double space preserved",
+      context: "Vote  now  please",
+      options: good2,
+      creator_cookie: null,
+      ip: "33.33.33.4",
+    });
+    expect("poll" in r4, `expected poll, got ${JSON.stringify(r4)}`).toBe(true);
+    if (!("poll" in r4)) return;
+    expect(r4.poll.context).toBe("Vote  now  please");
+    const fresh4 = await getPoll(r4.poll.id);
+    expect(fresh4!.context).toBe("Vote  now  please");
+
+    // isolation: first poll still trimmed after others created
+    const refetch1 = await getPoll(r1.poll.id);
+    expect(refetch1!.context).toBe("Help me pick one");
+  });
 });
