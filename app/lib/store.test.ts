@@ -2848,4 +2848,46 @@ describe("store — createPoll validation", () => {
     for (const o of fresh!.options) expect(o.poll_id).toBe(fresh!.id);
     expect(fresh!.options[0].id).not.toBe(fresh!.options[1].id);
   });
+
+  it("poll creation with 2 options and valid https image_url — accepted and stored verbatim, votes 0 (valid https URL coverage 60, mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const httpsA = "https://picsum.photos/seed/valid-https-60-a/600/600";
+    const httpsB = "https://picsum.photos/seed/valid-https-60-b/600/600";
+    const res = await createPoll({
+      title: "Valid https URL — 2-opt check 60",
+      options: [
+        { label: "A", image_url: httpsA },
+        { label: "B", image_url: httpsB },
+      ],
+      creator_cookie: null,
+      ip: "58.58.58.1",
+    });
+    expect("poll" in res, `expected poll for valid https URLs, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    // exactly 2 options
+    expect(res.poll.options).toHaveLength(2);
+    // valid https image_url is accepted and stored verbatim (trimmed) — new coverage for valid URL
+    expect(res.poll.options[0].image_url).toBe(httpsA);
+    expect(res.poll.options[1].image_url).toBe(httpsB);
+    expect(res.poll.options[0].label).toBe("A");
+    expect(res.poll.options[1].label).toBe("B");
+    // votes are 0 initially for both options
+    expect(res.poll.options[0].votes).toBe(0);
+    expect(res.poll.options[1].votes).toBe(0);
+    expect(res.poll.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(res.poll.options[0].position).toBe(0);
+    expect(res.poll.options[1].position).toBe(1);
+    // persisted via getPoll — same verbatim https URLs and votes 0
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.id).toBe(res.poll.id);
+    expect(fresh!.options).toHaveLength(2);
+    expect(fresh!.options[0].image_url).toBe(httpsA);
+    expect(fresh!.options[1].image_url).toBe(httpsB);
+    expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(fresh!.options.map((o) => o.position)).toEqual([0, 1]);
+    for (const o of fresh!.options) expect(o.poll_id).toBe(fresh!.id);
+    expect(fresh!.options[0].id).not.toBe(fresh!.options[1].id);
+  });
 });
