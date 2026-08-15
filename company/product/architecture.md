@@ -1,6 +1,6 @@
 # Architecture — PollPop MVP
 
-> VERIFIED prod `347f22c` + CI `8d0d793`. Next.js + Supabase + Vercel. Costs ESTIMATE until metered.
+> VERIFIED prod `347f22c` + CI `8d0d793`. Next.js + Supabase + Vercel. Docs lean pass 07 — audit vs code `app/app/api/polls/route.ts`, `app/app/api/polls/[id]/og/route.ts` (`nodejs` `sharp` 0.33), `app/app/p/[id]/PollClient.tsx` (`poll:{id}`+5s), `lib/dedup.ts`+`app/app/api/polls/*` (HttpOnly Secure x-vercel-forwarded-for). Costs ESTIMATE until metered. §29 labels honest: VERIFIED file/code vs INFERRED live until Dashboard/`vercel logs`/2-tab probe.
 
 ## Stack (lean, §29 labeled)
 
@@ -8,10 +8,10 @@
 |---|---|---|
 | App | **Next.js App Router** — SSR OG + API colocation | VERIFIED |
 | DB | **Supabase** Postgres + Realtime + Auth optional | VERIFIED |
-| Storage | **004 Storage poll-images public** — bucket `poll-images` public true, anon `SELECT` / `service_role` ALL (`004_storage.sql` VERIFIED file, live INFERRED until Dashboard/`vercel logs`) | VERIFIED/INFERRED |
-| OG | **OG png-sharp via sharp (nodejs runtime)** — sharp 0.33 at `GET /:id/og` → 1200×630 png, `max-age=3600`, `x-pollpop-og: png-sharp` 68kB VERIFIED; **nodejs runtime** not edge, SVG fallback; SSR `og:image` + `p/{id}.html` crawler fallback | VERIFIED live 200 |
-| Realtime | **Realtime poll:{id} + 5s fallback** — `poll:{id}` on `poll_options`/`votes` via `supabase_realtime` (INFERRED until live `pg_publication_tables`); mount subscribes, 5s `GET /:id` poll if ws drops | ESTIMATE <2s/5s |
-| Dedup | **HttpOnly Secure + x-vercel-forwarded-for (next-increment-04)** — `Set-Cookie: pollpop_cid HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=31536000` server-set; `x-pollpop-cid` fallback only; `clientIpFromHeaders` → `x-vercel-forwarded-for > x-real-ip` (drop `x-forwarded-for` → RT-SEC-04 fix VERIFIED grep 0) | VERIFIED code |
+| Storage | **004 Storage poll-images public** — bucket `poll-images` public true, anon `SELECT` / `service_role` ALL (`004_storage.sql` VERIFIED file, live INFERRED until Dashboard/`vercel logs` `select ... from storage.buckets`); route `app/app/api/polls/route.ts` uploads data: URLs → `poll-images/polls/*` via `supa.storage` | VERIFIED/INFERRED |
+| OG | **OG png-sharp via sharp (nodejs runtime)** — `app/app/api/polls/[id]/og/route.ts` `runtime="nodejs"` `sharp 0.33` → 1200×630 png `max-age=3600` `x-pollpop-og: png-sharp` 68kB VERIFIED live 200; `svg-nodejs`/`svg-fallback-error` fallback; SSR `og:image` + `p/{id}.html` crawler fallback (`app/app/p/[id]/page.tsx`) | VERIFIED live 200 |
+| Realtime | **Realtime poll:{id} + 5s fallback** — `poll:{id}` on `poll_options` via `supabase_realtime` (code `PollClient.tsx` `channel(poll:{id})` `.on("postgres_changes" poll_options)`, `setInterval 5000` `GET /:id` when `showResults`; publication INFERRED until live `pg_publication_tables`, propagation ESTIMATE <2s/5s until 2-tab probe) | ESTIMATE <2s/5s |
+| Dedup | **HttpOnly Secure + x-vercel-forwarded-for (next-increment-04)** — `Set-Cookie: pollpop_cid HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=31536000` server-set in `app/app/api/polls/route.ts` + `app/app/api/polls/[id]/vote/route.ts` (code `getCookieFromHeader` prefer HttpOnly, `x-pollpop-cid` fallback only then rotate); `clientIpFromHeaders` → `x-vercel-forwarded-for > x-real-ip` (drop `x-forwarded-for` → RT-SEC-04 fix VERIFIED grep old path 0, `lib/dedup.ts`) | VERIFIED code |
 | Hosting | Vercel `pollpop-five.vercel.app` (`prj_H0sE6sr...`) | VERIFIED |
 
 No inference/GPU — cheap falsification.

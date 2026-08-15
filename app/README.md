@@ -27,18 +27,18 @@ npm run dev
 
 - Create polls with 2–4 images (drag / paste / file / URL), labels ≤24, title ≤80
 - Vote: soft dedup via `cookie + ip_hash` (24h window, last write wins), transactional increment
-- Results: animated bars + live update (polls every 5s + Supabase Realtime when configured, falls back automatically)
-- Share: `Copy link` + Web Share API + OG image at `/api/polls/[id]/og` (edge SVG collage)
+- Results: animated bars + live update — **Realtime poll:{id} on poll_options + 5s `GET /:id` fallback** (code `PollClient.tsx` `channel(poll:{id})` + `setInterval 5000`; publication `supabase_realtime` INFERRED until `pg_publication_tables`, propagation ESTIMATE <2s/5s until live 2-tab probe) — falls back automatically if ws drops
+- Share: `Copy link` + Web Share API + OG image at `/api/polls/[id]/og` — **png-sharp nodejs** 1200×630 png via `sharp` 0.33 `runtime=nodejs` (`x-pollpop-og: png-sharp` 68kB `max-age=3600` VERIFIED live 200, `svg-nodejs` fallback)
 - CTA: sticky bottom card on mobile, `?ref=poll_{id}` attribution, `cta_view` via IntersectionObserver
-- Metrics: `/metrics` — CTR, voters/poll, K-factor, referred retention (all ESTIMATE until real traffic)
+- Metrics: `/metrics` — CTR, voters/poll, K-factor, referred retention (all **ESTIMATE until ≥50 poll_view** + 7-day seed 8 polls → 12–15 chats per `seeding-plan-2026-08-15.md`; §29 labels stay ESTIMATE)
 
 `npm run build` passes in mock mode — no env required.
 
-## Run locally — WITH Supabase (flip via env, zero code change)
+## Run locally — WITH Supabase (flip via env, zero code change) — VERIFIED code, live INFERRED until Dashboard
 
 1. Create a Supabase project at https://supabase.com
-2. Run the migration: `supabase/migrations/001_init.sql` (via SQL editor or `supabase db push`)
-3. Create a public Storage bucket `poll-images` if you will upload binaries (or use image URLs which skip Storage for MVP)
+2. Run migrations `supabase/migrations/001_init.sql` + `002_vote_rpc.sql` + `003_rls_tighten.sql` + `004_storage.sql` + `005_color.sql` (via SQL editor or `supabase db push`). `004_storage.sql` creates bucket `poll-images` public true + anon `SELECT` / `service_role` ALL — file VERIFIED, live INFERRED until `select id,name,public from storage.buckets where id='poll-images'` or `vercel logs`.
+3. Verify bucket: public `poll-images` exists (004). No manual create needed; manual bucket is fallback only. Binaries >2048 chars auto-upload via `app/app/api/polls/route.ts` → `poll-images/polls/{timestamp}.*`; URLs ≤2048 stay as-is.
 4. Copy env template and fill values:
 
 ```bash
@@ -51,12 +51,13 @@ cp .env.example .env.local
 # NEXT_PUBLIC_APP_URL=http://localhost:3000 (or Vercel URL)
 ```
 
-5. Realtime: in Supabase SQL editor run
+5. Realtime: `poll:{id}` on `poll_options` (code `app/app/p/[id]/PollClient.tsx` `channel(poll:{id})` + `postgres_changes` `poll_options` + 5s `GET /:id` fallback). Publication must include `poll_options`; `votes` propagates via counts refresh — add `votes` to publication to observe raw votes (optional). In Supabase SQL editor run
 ```sql
 alter publication supabase_realtime add table poll_options;
-alter publication supabase_realtime add table votes;
+-- optional, for raw vote rows: alter publication supabase_realtime add table votes;
+-- verify: select * from pg_publication_tables where pubname='supabase_realtime';
 ```
-6. `npm run dev` — the app auto-detects env and switches to Supabase (check console: no `mock mode` warning).
+6. `npm run dev` — the app auto-detects env and switches to Supabase (check console: no `mock mode` warning). Live INFERRED until Dashboard.
 
 No secrets are shipped to the client beyond the anon key.
 
@@ -65,7 +66,7 @@ No secrets are shipped to the client beyond the anon key.
 1. Push `app/` to GitHub (or connect repo in Vercel dashboard, set Root Directory to `app`)
 2. Add the same env vars in Vercel → Settings → Environment Variables
 3. Build command: `npm run build`, Output: `.next`
-4. OG images are edge-rendered SVG at `/api/polls/[id]/og` (cached `public, max-age=3600`). For production chat unfurl (WhatsApp/Discord), switch to `vercel/og` PNG or `sharp` (see `lib/og.ts` and `app/api/polls/[id]/og/route.ts` TODO) without changing callers.
+4. OG: `runtime=nodejs` png-sharp via `sharp` 0.33 at `/api/polls/[id]/og` — 1200×630 png, `cache-control: public, max-age=3600`, `x-pollpop-og: png-sharp` 68kB VERIFIED live 200, `svg-nodejs` fallback when sharp missing; never 500. SSR `og:image` via `generateMetadata` + `p/{id}.html` crawler fallback (code `app/app/api/polls/[id]/og/route.ts`, `app/app/p/[id]/page.tsx`).
 
 ## Testing
 
@@ -88,7 +89,7 @@ npm run test:all      # vitest run && playwright test
 
 - Unit tests live under `lib/*.test.ts` and `app/api/polls/route.test.ts` — they use the mock store (`isSupabaseConfigured=false`) so they are deterministic without Supabase.
 - `lib/store.test.ts` — validates P0-1 (2-4 opts, label≤24, title≤80), rejects bad input, hash dedup last-wins, burst 50 concurrent votes additive.
-- `lib/dedup.test.ts` — `pollpop_cid` uuid, `hashIpSync` deterministic, `clientIpFromHeaders` prefers `x-forwarded-for`.
+- `lib/dedup.test.ts` — `pollpop_cid` uuid, `hashIpSync` deterministic, `clientIpFromHeaders` prefers `x-vercel-forwarded-for > x-real-ip` (drop `x-forwarded-for` per RT-SEC-04 fix VERIFIED `grep -r x-forwarded-for` 0 on old path) + HttpOnly Secure `SameSite=Lax` server `Set-Cookie` (code `app/app/api/polls/route.ts`, `app/app/api/polls/[id]/vote/route.ts`, `lib/dedup.ts`).
 - `lib/analytics.test.ts` — beacon payload shape + single-fire per action.
 - `app/api/polls/route.test.ts` — `POST /api/polls` 201 happy path, 400 validation.
 - E2E: `e2e/create-vote-cta.spec.ts` — create → vote → bars + sticky CTA → `cta_view`/`cta_click` + OG meta `og:image`/`og:title`/`twitter:card`. Runs against mock mode (localhost) or prod if `PLAYWRIGHT_BASE_URL` is set.
