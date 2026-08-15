@@ -2374,4 +2374,48 @@ describe("store — createPoll validation", () => {
     const m3 = await getMetrics();
     expect(m3.totals.polls).toBe(beforeTotal + 1);
   });
+
+  it("poll creation with 2 options has unique poll id across multiple creates — two polls have different ids (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const mk2 = (seed: string) => [
+      { label: "A", image_url: `https://picsum.photos/seed/${seed}-a/600/600` },
+      { label: "B", image_url: `https://picsum.photos/seed/${seed}-b/600/600` },
+    ];
+    const r1 = await createPoll({
+      title: "Unique id — poll 1",
+      options: mk2("uniq-id-1"),
+      creator_cookie: null,
+      ip: "46.46.46.101",
+    });
+    const r2 = await createPoll({
+      title: "Unique id — poll 2",
+      options: mk2("uniq-id-2"),
+      creator_cookie: null,
+      ip: "46.46.46.102",
+    });
+    expect("poll" in r1, `expected poll 1, got ${JSON.stringify(r1)}`).toBe(true);
+    expect("poll" in r2, `expected poll 2, got ${JSON.stringify(r2)}`).toBe(true);
+    if (!("poll" in r1) || !("poll" in r2)) return;
+    // each poll has exactly 2 options as requested
+    expect(r1.poll.options).toHaveLength(2);
+    expect(r2.poll.options).toHaveLength(2);
+    // poll ids are unique across creates — core assertion
+    expect(r1.poll.id).not.toBe(r2.poll.id);
+    expect(r1.poll.id.length).toBeGreaterThan(0);
+    expect(r2.poll.id.length).toBeGreaterThan(0);
+    // ids are 8-char nanoid shape (lowercase alphanum) — matches store nanoid(8)
+    expect(r1.poll.id).toMatch(/^[0-9a-z]{8}$/);
+    expect(r2.poll.id).toMatch(/^[0-9a-z]{8}$/);
+    // both retrievable via getPoll and still distinct
+    const f1 = await getPoll(r1.poll.id);
+    const f2 = await getPoll(r2.poll.id);
+    expect(f1).not.toBeNull();
+    expect(f2).not.toBeNull();
+    expect(f1!.id).toBe(r1.poll.id);
+    expect(f2!.id).toBe(r2.poll.id);
+    expect(f1!.id).not.toBe(f2!.id);
+    expect(f1!.options).toHaveLength(2);
+    expect(f2!.options).toHaveLength(2);
+  });
 });
