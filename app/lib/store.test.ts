@@ -2499,4 +2499,41 @@ describe("store — createPoll validation", () => {
     // linkage still correct after title check
     for (const o of fetched!.options) expect(o.poll_id).toBe(fetched!.id);
   });
+
+  it("poll creation with 2 options verifies context persistence via getPoll — context correctly stored and retrievable (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const context = "Help me pick one — vote soon";
+    const res = await createPoll({
+      title: "Context persistence — 2-option check",
+      context,
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/ctx-persist-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/ctx-persist-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "49.49.49.1",
+    });
+    expect("poll" in res, `expected poll with 2 options and context, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    // 2 options exactly
+    expect(res.poll.options).toHaveLength(2);
+    expect(res.poll.options[0].position).toBe(0);
+    expect(res.poll.options[1].position).toBe(1);
+    expect(res.poll.options.map((o) => o.votes)).toEqual([0, 0]);
+    // context correctly stored on create response (trimmed)
+    expect(res.poll.context).toBe(context);
+    expect(typeof res.poll.context).toBe("string");
+    expect(res.poll.title).toBe("Context persistence — 2-option check");
+    // retrievable via getPoll — same trimmed value, options intact
+    const fetched = await getPoll(res.poll.id);
+    expect(fetched).not.toBeNull();
+    expect(fetched!.id).toBe(res.poll.id);
+    expect(fetched!.context).toBe(context);
+    expect(fetched!.context).toBe(res.poll.context);
+    expect(fetched!.options).toHaveLength(2);
+    expect(fetched!.options.map((o) => o.label)).toEqual(["A", "B"]);
+    expect(fetched!.options.map((o) => o.position)).toEqual([0, 1]);
+    for (const o of fetched!.options) expect(o.poll_id).toBe(fetched!.id);
+  });
 });
