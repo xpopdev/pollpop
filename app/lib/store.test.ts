@@ -2214,4 +2214,69 @@ describe("store — createPoll validation", () => {
       expect((bad2 as { error: string }).error).toMatch(/Each option needs an image/i);
     }
   });
+
+  it("poll creation with 2 options — label trimming is correctly applied (leading/trailing spaces trimmed) (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    // leading/trailing spaces on both labels — store does o.label.trim() (store.ts:224,257)
+    const res = await createPoll({
+      title: "Label trim — 2-opt",
+      options: [
+        { label: "  Option A  ", image_url: "https://picsum.photos/seed/label-trim-a/600/600" },
+        { label: "\t Option B \t ", image_url: "https://picsum.photos/seed/label-trim-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "43.43.43.1",
+    });
+    expect("poll" in res, `expected poll with 2 options, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    // exactly 2 options as requested
+    expect(res.poll.options).toHaveLength(2);
+    // leading/trailing spaces trimmed, not preserved
+    expect(res.poll.options[0].label).toBe("Option A");
+    expect(res.poll.options[0].label).not.toBe("  Option A  ");
+    expect(res.poll.options[1].label).toBe("Option B");
+    expect(res.poll.options[1].label).not.toBe("\t Option B \t ");
+    // positions 0,1 and votes 0 untouched by trim
+    expect(res.poll.options[0].position).toBe(0);
+    expect(res.poll.options[1].position).toBe(1);
+    expect(res.poll.options.map((o) => o.votes)).toEqual([0, 0]);
+    // image_url also trimmed but otherwise verbatim
+    expect(res.poll.options[0].image_url).toBe("https://picsum.photos/seed/label-trim-a/600/600");
+    expect(res.poll.options[1].image_url).toBe("https://picsum.photos/seed/label-trim-b/600/600");
+    // persisted via getPoll — same trimmed labels, not raw spaced input
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.options).toHaveLength(2);
+    expect(fresh!.options[0].label).toBe("Option A");
+    expect(fresh!.options[1].label).toBe("Option B");
+    expect(fresh!.options.map((o) => o.position)).toEqual([0, 1]);
+    expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0]);
+    for (const o of fresh!.options) expect(o.poll_id).toBe(fresh!.id);
+
+    // interior double spaces preserved — only ends trimmed (mirrors category/context trim tests)
+    const res2 = await createPoll({
+      title: "Label trim — interior preserved",
+      options: [
+        { label: "  Alpha  Beta  ", image_url: "https://picsum.photos/seed/label-trim-c/600/600" },
+        { label: "  Gamma  ", image_url: "https://picsum.photos/seed/label-trim-d/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "43.43.43.2",
+    });
+    expect("poll" in res2, `expected poll for interior preserved, got ${JSON.stringify(res2)}`).toBe(true);
+    if (!("poll" in res2)) return;
+    expect(res2.poll.options[0].label).toBe("Alpha  Beta");
+    expect(res2.poll.options[0].label).not.toBe("  Alpha  Beta  ");
+    // interior double space still there, ends trimmed
+    expect(res2.poll.options[0].label).toContain("  ");
+    expect(res2.poll.options[1].label).toBe("Gamma");
+    const fresh2 = await getPoll(res2.poll.id);
+    expect(fresh2!.options[0].label).toBe("Alpha  Beta");
+    expect(fresh2!.options[1].label).toBe("Gamma");
+    // isolation: first poll still trimmed after second create
+    const refetch1 = await getPoll(res.poll.id);
+    expect(refetch1!.options[0].label).toBe("Option A");
+    expect(refetch1!.options[1].label).toBe("Option B");
+  });
 });
