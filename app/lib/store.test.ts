@@ -1666,4 +1666,57 @@ describe("store — createPoll validation", () => {
     expect(fresh4!.options.find((o) => o.id === optA.id)?.votes).toBe(2);
     expect(fresh4!.options.reduce((a, o) => a + o.votes, 0)).toBe(2);
   });
+
+  it("preserves image_url with query params and hash fragments verbatim for 2-option poll (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    // query + hash shape: real CDN resize + hash anchor must survive trim + new URL + persist
+    const urlA = "https://picsum.photos/seed/pollpop-hash-a/600/600?w=600&h=800&fit=crop#preview";
+    const urlB = "https://cdn.example.com/img/photo.jpg?token=abc123&expires=999#hash-frag";
+    const res = await createPoll({
+      title: "Hash frag preserve 2-opt",
+      options: [
+        { label: "A", image_url: urlA },
+        { label: "B", image_url: urlB },
+      ],
+      creator_cookie: null,
+      ip: "29.29.29.1",
+    });
+    expect("poll" in res, `expected poll, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    // 2 options exactly, votes 0, positions 0/1, image_urls verbatim (trimmed only, not stripped)
+    expect(res.poll.options).toHaveLength(2);
+    expect(res.poll.options[0].image_url).toBe(urlA);
+    expect(res.poll.options[1].image_url).toBe(urlB);
+    expect(res.poll.options[0].image_url).toContain("?w=600");
+    expect(res.poll.options[0].image_url).toContain("?w=600&h=800&fit=crop");
+    expect(res.poll.options[0].image_url).toContain("#preview");
+    expect(res.poll.options[1].image_url).toContain("?token=abc123");
+    expect(res.poll.options[1].image_url).toContain("#hash-frag");
+    expect(res.poll.options[0].position).toBe(0);
+    expect(res.poll.options[1].position).toBe(1);
+    expect(res.poll.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(res.poll.options.map((o) => o.label)).toEqual(["A", "B"]);
+    // persisted via getPoll — same verbatim URLs with query+hash, not normalized away
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.id).toBe(res.poll.id);
+    expect(fresh!.options).toHaveLength(2);
+    expect(fresh!.options[0].image_url).toBe(urlA);
+    expect(fresh!.options[1].image_url).toBe(urlB);
+    expect(fresh!.options[0].image_url).toContain("?w=600&h=800&fit=crop");
+    expect(fresh!.options[0].image_url).toContain("#preview");
+    expect(fresh!.options[1].image_url).toContain("?token=abc123&expires=999");
+    expect(fresh!.options[1].image_url).toContain("#hash-frag");
+    expect(fresh!.options.map((o) => o.position)).toEqual([0, 1]);
+    expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0]);
+    for (const o of fresh!.options) expect(o.poll_id).toBe(fresh!.id);
+    // also verify via URL parsing the hash and search survive
+    const parsedA = new URL(fresh!.options[0].image_url);
+    expect(parsedA.search).toBe("?w=600&h=800&fit=crop");
+    expect(parsedA.hash).toBe("#preview");
+    const parsedB = new URL(fresh!.options[1].image_url);
+    expect(parsedB.search).toBe("?token=abc123&expires=999");
+    expect(parsedB.hash).toBe("#hash-frag");
+  });
 });
