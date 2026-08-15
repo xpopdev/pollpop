@@ -1719,4 +1719,44 @@ describe("store — createPoll validation", () => {
     expect(parsedB.search).toBe("?token=abc123&expires=999");
     expect(parsedB.hash).toBe("#hash-frag");
   });
+
+  it("poll creation with 2 options — option ids distinct and poll_id linkage correct (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const res = await createPoll({
+      title: "Distinct ids 2-opt",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/distinct-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/distinct-b/600/600" },
+      ],
+      creator_cookie: "distinct-cid-30",
+      ip: "30.30.30.1",
+    });
+    expect("poll" in res, `expected poll with 2 options, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    // exactly 2 options as requested
+    expect(res.poll.options).toHaveLength(2);
+    const [optA, optB] = res.poll.options;
+    // option ids are distinct (no collision)
+    expect(optA.id).not.toBe(optB.id);
+    expect(new Set([optA.id, optB.id]).size).toBe(2);
+    // poll_id linkage correct for each option (option.poll_id === poll.id)
+    expect(optA.poll_id).toBe(res.poll.id);
+    expect(optB.poll_id).toBe(res.poll.id);
+    for (const o of res.poll.options) expect(o.poll_id).toBe(res.poll.id);
+    // ids follow `${pollId}-opt-${index}` shape and positions 0,1 votes 0
+    expect(optA.id).toBe(`${res.poll.id}-opt-0`);
+    expect(optB.id).toBe(`${res.poll.id}-opt-1`);
+    expect(res.poll.options.map((o) => o.position)).toEqual([0, 1]);
+    expect(res.poll.options.map((o) => o.votes)).toEqual([0, 0]);
+    // persisted via getPoll — same distinct ids and poll_id linkage
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.options).toHaveLength(2);
+    expect(fresh!.options[0].id).not.toBe(fresh!.options[1].id);
+    expect(new Set(fresh!.options.map((o) => o.id)).size).toBe(2);
+    for (const o of fresh!.options) expect(o.poll_id).toBe(fresh!.id);
+    expect(fresh!.id).toBe(res.poll.id);
+    expect(fresh!.options.map((o) => o.poll_id)).toEqual([res.poll.id, res.poll.id]);
+  });
 });
