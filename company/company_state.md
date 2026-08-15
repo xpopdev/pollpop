@@ -5,16 +5,16 @@
 
 **Autonomy mode:** UNATTENDED
 
-**Current phase:** PHASE 3 — BUILD (b724100 green, perf bench added, auto loop)
+**Current phase:** PHASE 3 — BUILD (live bench 2/5, vote/burst need fix)
 
-**Last updated:** 2026-08-14
+**Last updated:** 2026-08-15
 
-**Active department / agent:** QA (all checks green) → Product (quality-bar re-score)
+**Active department / agent:** Engineering (backend — fixing vote atomicity)
 
-**Summary:** b724100 all checks green: test 11/11 + e2e 2/2 + build + deploy + report-build-status success. Perf bench stub added (method for 15s/500ms/2s vs actual). Storage 004 applied so data URL path live. Design exact 56c2bcf, RLS 003, OG nodejs, metrics hardening done. Quality-bar was 9/17 PASS (e2e flipped), now perf moves FAIL→PARTIAL (10/17). Prod pollpop-five live, fake-door xpopdev.github.io/pollpop live.
+**Summary:** Live bench 2026-08-15 (8aa5226): create 3.7s PASS, OG png PASS, but vote 3.1-5.2s >500ms FAIL and burst lost increments FAIL (store.ts atomicIncrement empty update not durable). Prod 5/5 verify now PASS after DNS fix + 005_color (9pnqtv54 201, poll-images URL). CI 8aa5226 was 2/5 perf, now at 0b6e99a+ with 34-35 store tests ~38-40 total, all CI green through 0b6e99a. Not MVP — perf and burst need atomic fix.
 
-**In flight:** Quality-bar re-score 10/17 → then next P2 hardening (competitor re-verify, docs, CEO re-review) → prod smoke (data URL upload to bucket) → §40
+**In flight:** Fixing app/lib/store.ts atomic vote increment (single UPDATE votes=votes+1 or require RPC) and re-bench burst 50.
 
-**Blocked on:** nothing — auto Phase B loop
+**Blocked on:** nothing file-based — prod now VERIFIED live (5/5), just fixing perf/burst to flip quality-bar.
 
-**Next action:** quality-bar → daily-report drift → next increment → loop until 17/17 → milestone
+**Next action:** Fix atomic increment → re-bench burst 50 → quality-bar → milestone

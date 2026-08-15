@@ -400,86 +400,52 @@ export async function voteOnPoll(input: {
   const isNew = !existing;
   if (isNew && (count || 0) >= 10) return { error: "Too many votes — try again tomorrow", status: 429, code: "RATE_LIMITED", retry_after: 86400 };
 
-  // helper: atomic increment via RPC, fallback to single UPDATE if RPC not yet migrated
-  // Primary: RPC increment_vote does `update poll_options set votes = votes + 1 where id = p_option_id`
-  // Fallback must be single UPDATE not read-then-write to avoid lost increments
-  async function atomicIncrement(pollId: string, optionId: string) {
+  // helpers: atomic increment/decrement via RPC — no silent fallback
+  // Live bench 2026-08-15 burst 10 lost increments (0,0 vs total:11, 5358ms wall) was caused by
+  // empty `update({})` fallback which is NOT durable — PostgREST PATCH with {} is a no-op, not
+  // `SET votes = votes + 1`. Supabase-js has no `raw("votes + 1")` / increment helper, so the
+  // only atomic path is the Postgres RPC (002_vote_rpc.sql):
+  //   UPDATE poll_options SET votes = votes + 1 WHERE id = :option_id   (single statement)
+  // Per red-team RT-BUG-02, require RPC and fail loudly if missing — deploy must apply 002.
+  async function atomicIncrement(pollId: string, optionId: string): Promise<void> {
     const { error } = await supa.rpc("increment_vote" as never, { p_poll_id: pollId, p_option_id: optionId } as never);
     if (!error) return;
-    // fallback: single UPDATE — update poll_options set votes = votes + 1 where id = optionId
-    // Atomic server-side increment, no SELECT, single statement
-    try {
-      // Try raw SQL single UPDATE via generic exec (if available)
-      // SQL: update poll_options set votes = votes + 1 where id = '...' and poll_id = '...'
-      const sql = `update poll_options set votes = votes + 1 where id = '${optionId.replace(/'/g, "''")}' and poll_id = '${pollId.replace(/'/g, "''")}'`;
-      try {
-        const { error: execErr } = await (supa as unknown as { rpc: (n: string, p: Record<string, string>) => Promise<{ error: unknown }> }).rpc("exec_sql", { sql } as unknown as never);
-        if (!execErr) return;
-      } catch {}
-      const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
-      const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-      if (supaUrl && supaKey) {
-        // Single atomic UPDATE via PostgREST: update poll_options set votes = votes + 1
-        // Use fetch to issue single PATCH without SELECT
-        await fetch(`${supaUrl}/rest/v1/poll_options?id=eq.${encodeURIComponent(optionId)}&poll_id=eq.${encodeURIComponent(pollId)}`, {
-          method: "PATCH",
-          headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
-          body: JSON.stringify({}),
-        });
-        // Also ensure single UPDATE via client (no read) as fallback
-        // SQL: update poll_options set votes = votes + 1 where id = $1
-        await supa.from("poll_options").update({} as never).eq("id", optionId).eq("poll_id", pollId);
-        return;
-      }
-      // Fallback single UPDATE without SELECT (atomic)
-      // update poll_options set votes = votes + 1
-      await supa.from("poll_options").update({} as never).eq("id", optionId).eq("poll_id", pollId);
-    } catch (e) {
-      console.error("[atomicIncrement] fallback failed", e);
-      try {
-        // Last resort single UPDATE (no SELECT) — update poll_options set votes = votes + 1
-        await supa.from("poll_options").update({} as never).eq("id", optionId);
-      } catch {}
-    }
+    // No read-then-write fallback (that races under 50 concurrent voters). Fail fast so the
+    // missing-migration is detected at deploy / bench time instead of silently losing votes.
+    throw new Error(
+      `[atomicIncrement] increment_vote RPC failed: ${(error as { message?: string }).message || String(error)}. ` +
+      `Apply app/supabase/migrations/002_vote_rpc.sql (UPDATE poll_options SET votes = votes + 1 WHERE id = :option_id). ` +
+      `Empty update({}) fallback removed — it lost votes under burst (2026-08-15 bench 0,0 vs total:11).`
+    );
   }
-  async function atomicDecrement(pollId: string, optionId: string) {
+  async function atomicDecrement(pollId: string, optionId: string): Promise<void> {
     const { error } = await supa.rpc("decrement_vote" as never, { p_poll_id: pollId, p_option_id: optionId } as never);
     if (!error) return;
-    // fallback: single UPDATE — update poll_options set votes = greatest(votes - 1, 0) where id = optionId
-    // Atomic, no read-then-write
-    try {
-      const sql = `update poll_options set votes = greatest(votes - 1, 0) where id = '${optionId.replace(/'/g, "''")}' and poll_id = '${pollId.replace(/'/g, "''")}'`;
-      try {
-        const { error: execErr } = await (supa as unknown as { rpc: (n: string, p: Record<string, string>) => Promise<{ error: unknown }> }).rpc("exec_sql", { sql } as unknown as never);
-        if (!execErr) return;
-      } catch {}
-      const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
-      const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-      if (supaUrl && supaKey) {
-        // Single atomic UPDATE: update poll_options set votes = greatest(votes - 1, 0)
-        await fetch(`${supaUrl}/rest/v1/poll_options?id=eq.${encodeURIComponent(optionId)}&poll_id=eq.${encodeURIComponent(pollId)}`, {
-          method: "PATCH",
-          headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
-          body: JSON.stringify({}),
-        });
-        // SQL: update poll_options set votes = greatest(votes - 1, 0)
-        return;
-      }
-      // Fallback single UPDATE without SELECT
-      // update poll_options set votes = greatest(votes - 1, 0)
-      await supa.from("poll_options").update({} as never).eq("id", optionId).eq("poll_id", pollId);
-    } catch (e) {
-      console.error("[atomicDecrement] fallback failed", e);
-      try {
-        await supa.from("poll_options").update({} as never).eq("id", optionId);
-      } catch {}
-    }
+    throw new Error(
+      `[atomicDecrement] decrement_vote RPC failed: ${(error as { message?: string }).message || String(error)}. ` +
+      `Apply app/supabase/migrations/002_vote_rpc.sql (UPDATE poll_options SET votes = greatest(votes - 1,0) WHERE id = :option_id).`
+    );
   }
 
   if (existing) {
     if (existing.option_id !== input.option_id) {
-      await atomicDecrement(input.poll_id, existing.option_id);
-      await atomicIncrement(input.poll_id, input.option_id);
+      // change-vote: both counts must move atomically — no read-then-write. Try single-transaction
+      // `change_vote` RPC if deployed (does decrement+increment in one tx), else two atomic RPCs.
+      // Each atomic helper is a single `UPDATE ... SET votes = votes ± 1 WHERE id = :option_id`
+      // so burst 50 cannot lose increments to concurrent SELECT+UPDATE.
+      let changeDone = false;
+      try {
+        const { error: changeErr } = await supa.rpc("change_vote" as never, {
+          p_poll_id: input.poll_id,
+          p_old_option_id: existing.option_id,
+          p_new_option_id: input.option_id,
+        } as never);
+        if (!changeErr) changeDone = true;
+      } catch {}
+      if (!changeDone) {
+        await atomicDecrement(input.poll_id, existing.option_id);
+        await atomicIncrement(input.poll_id, input.option_id);
+      }
       await supa.from("votes").update({ option_id: input.option_id, created_at: new Date().toISOString() }).eq("id", existing.id);
     }
   } else {
