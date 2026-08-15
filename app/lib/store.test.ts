@@ -2150,4 +2150,68 @@ describe("store — createPoll validation", () => {
     expect(fresh!.options.reduce((a, o) => a + o.votes, 0)).toBe(1);
     expect(fresh!.options.map((o) => o.position)).toEqual([0, 1]);
   });
+
+  it("image_url validation — valid https URL accepted and stored, empty string 400 for 2-option poll (store layer, mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const httpsA = "https://picsum.photos/seed/imgval-a/600/600";
+    const httpsB = "https://picsum.photos/seed/imgval-b/600/600";
+    // valid https URLs — 2-option poll accepted and image_url stored verbatim (trimmed)
+    const ok = await createPoll({
+      title: "Image URL valid https — 2-opt",
+      options: [
+        { label: "A", image_url: httpsA },
+        { label: "B", image_url: httpsB },
+      ],
+      creator_cookie: null,
+      ip: "42.42.42.1",
+    });
+    expect("poll" in ok, `expected poll for valid https image_url, got ${JSON.stringify(ok)}`).toBe(true);
+    if (!("poll" in ok)) return;
+    expect(ok.poll.options).toHaveLength(2);
+    expect(ok.poll.options[0].image_url).toBe(httpsA);
+    expect(ok.poll.options[1].image_url).toBe(httpsB);
+    expect(ok.poll.options[0].position).toBe(0);
+    expect(ok.poll.options[1].position).toBe(1);
+    expect(ok.poll.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(ok.poll.options[0].label).toBe("A");
+    expect(ok.poll.options[1].label).toBe("B");
+    // persisted via getPoll — same verbatim https URLs, not rewritten
+    const fresh = await getPoll(ok.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.options).toHaveLength(2);
+    expect(fresh!.options[0].image_url).toBe(httpsA);
+    expect(fresh!.options[1].image_url).toBe(httpsB);
+    expect(fresh!.options.map((o) => o.position)).toEqual([0, 1]);
+    expect(fresh!.options.map((o) => o.votes)).toEqual([0, 0]);
+    for (const o of fresh!.options) expect(o.poll_id).toBe(fresh!.id);
+    // empty string image_url — 400 Each option needs an image (first option empty)
+    const bad1 = await createPoll({
+      title: "Image URL empty — first opt",
+      options: [
+        { label: "A", image_url: "" },
+        { label: "B", image_url: httpsB },
+      ],
+      creator_cookie: null,
+      ip: "42.42.42.2",
+    });
+    expect(bad1).toMatchObject({ status: 400 });
+    if ("error" in (bad1 as { error: string; status: number })) {
+      expect((bad1 as { error: string }).error).toMatch(/Each option needs an image/i);
+    }
+    // empty string in second option — also 400 (2-option poll must validate all options)
+    const bad2 = await createPoll({
+      title: "Image URL empty — second opt",
+      options: [
+        { label: "A", image_url: httpsA },
+        { label: "B", image_url: "" },
+      ],
+      creator_cookie: null,
+      ip: "42.42.42.3",
+    });
+    expect(bad2).toMatchObject({ status: 400 });
+    if ("error" in (bad2 as { error: string; status: number })) {
+      expect((bad2 as { error: string }).error).toMatch(/Each option needs an image/i);
+    }
+  });
 });
