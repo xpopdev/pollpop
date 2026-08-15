@@ -1991,4 +1991,43 @@ describe("store — createPoll validation", () => {
     expect(fresh!.created_at.length).toBeGreaterThan(0);
     expect(fresh!.created_at).not.toBe("");
   });
+
+  it("poll creation with image_url with hash fragments preserved verbatim for 2-option poll (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    // hash-only (no query) must survive verbatim — store must not strip hash via URL normalization
+    const urlA = "https://picsum.photos/seed/hash-verbatim-a/600/600#frag-a";
+    const urlB = "https://picsum.photos/seed/hash-verbatim-b/600/600#frag-b-2";
+    const res = await createPoll({
+      title: "Hash verbatim 2-opt",
+      options: [
+        { label: "A", image_url: urlA },
+        { label: "B", image_url: urlB },
+      ],
+      creator_cookie: null,
+      ip: "35.35.35.1",
+    });
+    expect("poll" in res, `expected poll, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    expect(res.poll.options).toHaveLength(2);
+    // verbatim — hash preserved, not stripped or normalized away
+    expect(res.poll.options[0].image_url).toBe(urlA);
+    expect(res.poll.options[1].image_url).toBe(urlB);
+    expect(res.poll.options[0].image_url).toContain("#frag-a");
+    expect(res.poll.options[1].image_url).toContain("#frag-b-2");
+    // distinct ids and poll_id linkage still correct
+    expect(res.poll.options[0].id).not.toBe(res.poll.options[1].id);
+    for (const o of res.poll.options) expect(o.poll_id).toBe(res.poll.id);
+    // persisted via getPoll — same verbatim hash
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.options).toHaveLength(2);
+    expect(fresh!.options[0].image_url).toBe(urlA);
+    expect(fresh!.options[1].image_url).toBe(urlB);
+    expect(new URL(fresh!.options[0].image_url).hash).toBe("#frag-a");
+    expect(new URL(fresh!.options[1].image_url).hash).toBe("#frag-b-2");
+    // ensure hash not confused with query — search should be empty
+    expect(new URL(fresh!.options[0].image_url).search).toBe("");
+    expect(new URL(fresh!.options[1].image_url).search).toBe("");
+  });
 });
