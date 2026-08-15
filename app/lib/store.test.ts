@@ -1809,4 +1809,76 @@ describe("store — createPoll validation", () => {
       expect(Number.isFinite(o.votes)).toBe(true);
     }
   });
+
+  it("poll creation with category with leading/trailing spaces is trimmed (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const good2 = [
+      { label: "A", image_url: "https://picsum.photos/seed/cat-trim-a/600/600" },
+      { label: "B", image_url: "https://picsum.photos/seed/cat-trim-b/600/600" },
+    ];
+    // leading/trailing spaces — store does input.category?.trim() || null
+    const r1 = await createPoll({
+      title: "Category trim — spaces",
+      category: "  Design  ",
+      options: good2,
+      creator_cookie: null,
+      ip: "32.32.32.1",
+    });
+    expect("poll" in r1, `expected poll, got ${JSON.stringify(r1)}`).toBe(true);
+    if (!("poll" in r1)) return;
+    expect(r1.poll.category).toBe("Design");
+    expect(r1.poll.category).not.toBe("  Design  ");
+    expect(typeof r1.poll.category).toBe("string");
+    const fresh1 = await getPoll(r1.poll.id);
+    expect(fresh1).not.toBeNull();
+    expect(fresh1!.category).toBe("Design");
+
+    // tabs + multiple spaces + interior preserved, ends trimmed
+    const r2 = await createPoll({
+      title: "Category trim — tabs",
+      category: "\t  Food & Drink \t ",
+      options: good2,
+      creator_cookie: null,
+      ip: "32.32.32.2",
+    });
+    expect("poll" in r2, `expected poll, got ${JSON.stringify(r2)}`).toBe(true);
+    if (!("poll" in r2)) return;
+    expect(r2.poll.category).toBe("Food & Drink");
+    const fresh2 = await getPoll(r2.poll.id);
+    expect(fresh2!.category).toBe("Food & Drink");
+
+    // whitespace-only collapses to null ( "   ".trim() || null )
+    const r3 = await createPoll({
+      title: "Category trim — whitespace only null",
+      category: "   ",
+      options: good2,
+      creator_cookie: null,
+      ip: "32.32.32.3",
+    });
+    expect("poll" in r3, `expected poll, got ${JSON.stringify(r3)}`).toBe(true);
+    if (!("poll" in r3)) return;
+    expect(r3.poll.category).toBeNull();
+    expect(r3.poll.category).not.toBe("");
+    const fresh3 = await getPoll(r3.poll.id);
+    expect(fresh3!.category).toBeNull();
+
+    // no leading/trailing — unchanged, proves not over-trimming interior double spaces
+    const r4 = await createPoll({
+      title: "Category trim — interior double space preserved",
+      category: "Street  Style",
+      options: good2,
+      creator_cookie: null,
+      ip: "32.32.32.4",
+    });
+    expect("poll" in r4, `expected poll, got ${JSON.stringify(r4)}`).toBe(true);
+    if (!("poll" in r4)) return;
+    expect(r4.poll.category).toBe("Street  Style");
+    const fresh4 = await getPoll(r4.poll.id);
+    expect(fresh4!.category).toBe("Street  Style");
+
+    // isolation: first poll still trimmed after others created
+    const refetch1 = await getPoll(r1.poll.id);
+    expect(refetch1!.category).toBe("Design");
+  });
 });
