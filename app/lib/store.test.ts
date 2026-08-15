@@ -2460,4 +2460,43 @@ describe("store — createPoll validation", () => {
     for (const o of fresh!.options) expect(o.poll_id).toBe(fresh!.id);
     expect(fresh!.options[0].id).not.toBe(fresh!.options[1].id);
   });
+
+  it("poll creation with 2 options verifies title persistence via getPoll — title correctly stored and retrievable (mock mode, deterministic)", async () => {
+    resetMock();
+    const { createPoll, getPoll } = await import("./store");
+    const title = "Which fit do you prefer? — title persistence";
+    const res = await createPoll({
+      title,
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/title-persist-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/title-persist-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "48.48.48.1",
+    });
+    expect("poll" in res, `expected poll with 2 options, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    // 2 options as requested — new coverage for title persistence
+    expect(res.poll.options).toHaveLength(2);
+    expect(res.poll.options[0].position).toBe(0);
+    expect(res.poll.options[1].position).toBe(1);
+    expect(res.poll.options.map((o) => o.votes)).toEqual([0, 0]);
+    // title correctly stored on create response (trimmed)
+    expect(res.poll.title).toBe(title);
+    expect(typeof res.poll.title).toBe("string");
+    expect(res.poll.title.length).toBeGreaterThan(0);
+    expect(res.poll.title.length).toBeLessThanOrEqual(80);
+    // poll can be fetched via getPoll with correct id
+    const fetched = await getPoll(res.poll.id);
+    expect(fetched).not.toBeNull();
+    expect(fetched!.id).toBe(res.poll.id);
+    // title is correctly stored and retrievable via getPoll
+    expect(fetched!.title).toBe(title);
+    expect(fetched!.title).toBe(res.poll.title);
+    expect(fetched!.options).toHaveLength(2);
+    expect(fetched!.options.map((o) => o.label)).toEqual(["A", "B"]);
+    expect(fetched!.options.map((o) => o.position)).toEqual([0, 1]);
+    // linkage still correct after title check
+    for (const o of fetched!.options) expect(o.poll_id).toBe(fetched!.id);
+  });
 });
