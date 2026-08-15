@@ -2890,4 +2890,43 @@ describe("store — createPoll validation", () => {
     for (const o of fresh!.options) expect(o.poll_id).toBe(fresh!.id);
     expect(fresh!.options[0].id).not.toBe(fresh!.options[1].id);
   });
+
+  it("poll creation with 2 options — single vote for option A → A 1, B 0 via voteOnPoll and getPoll (mock mode, deterministic) — file-based polish 61", async () => {
+    resetMock();
+    const { createPoll, voteOnPoll, getPoll } = await import("./store");
+    const res = await createPoll({
+      title: "Single vote 61 — 2 opts A count 1",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/single-vote-61-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/single-vote-61-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "61.61.61.1",
+    });
+    expect("poll" in res, `expected poll with 2 options, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    expect(res.poll.options).toHaveLength(2);
+    expect(res.poll.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(res.poll.options[0].position).toBe(0);
+    expect(res.poll.options[1].position).toBe(1);
+    const [optA, optB] = res.poll.options;
+    const voteRes = await voteOnPoll({
+      poll_id: res.poll.id,
+      option_id: optA.id,
+      voter_cookie: "single-vote-61-voter-1",
+      ip: "61.61.61.2",
+    });
+    expect("counts" in voteRes, `expected counts after single vote, got ${JSON.stringify(voteRes)}`).toBe(true);
+    if (!("counts" in voteRes)) return;
+    expect(voteRes.total).toBe(1);
+    expect(voteRes.counts[optA.id]).toBe(1);
+    expect(voteRes.counts[optB.id]).toBe(0);
+    // persisted via getPoll — A 1, B 0, total 1
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.options.find((o) => o.id === optA.id)?.votes).toBe(1);
+    expect(fresh!.options.find((o) => o.id === optB.id)?.votes).toBe(0);
+    expect(fresh!.options.reduce((s, o) => s + o.votes, 0)).toBe(1);
+    expect(fresh!.options.map((o) => o.position)).toEqual([0, 1]);
+  });
 });
