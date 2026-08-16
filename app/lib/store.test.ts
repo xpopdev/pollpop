@@ -3058,4 +3058,49 @@ describe("store — createPoll validation", () => {
     for (const o of fresh!.options) expect(o.poll_id).toBe(fresh!.id);
     expect(fresh!.options[0].id).not.toBe(fresh!.options[1].id);
   });
+
+  it("poll creation with 2 options — single vote for option A → A 1, B 0 via voteOnPoll and getPoll (mock mode, deterministic) — file-based polish 65", async () => {
+    resetMock();
+    const { createPoll, voteOnPoll, getPoll } = await import("./store");
+    const res = await createPoll({
+      title: "Single vote count — 2-opt polish 65",
+      options: [
+        { label: "A", image_url: "https://picsum.photos/seed/single-vote-65-a/600/600" },
+        { label: "B", image_url: "https://picsum.photos/seed/single-vote-65-b/600/600" },
+      ],
+      creator_cookie: null,
+      ip: "65.65.65.1",
+    });
+    expect("poll" in res, `expected poll with 2 options, got ${JSON.stringify(res)}`).toBe(true);
+    if (!("poll" in res)) return;
+    // exactly 2 options, votes 0 initially, positions 0/1
+    expect(res.poll.options).toHaveLength(2);
+    expect(res.poll.options.map((o) => o.votes)).toEqual([0, 0]);
+    expect(res.poll.options[0].position).toBe(0);
+    expect(res.poll.options[1].position).toBe(1);
+    expect(res.poll.options[0].label).toBe("A");
+    expect(res.poll.options[1].label).toBe("B");
+    const [optA, optB] = res.poll.options;
+    // single vote for option A — count 1 for A, 0 for B, total 1 (core single-vote correctness)
+    const r = await voteOnPoll({
+      poll_id: res.poll.id,
+      option_id: optA.id,
+      voter_cookie: "single-vote-65-voter-1",
+      ip: "65.65.65.10",
+    });
+    expect("counts" in r, `expected vote to succeed, got ${JSON.stringify(r)}`).toBe(true);
+    if (!("counts" in r)) return;
+    expect(r.total).toBe(1);
+    expect(r.counts[optA.id]).toBe(1);
+    expect(r.counts[optB.id]).toBe(0);
+    // persisted via getPoll — same 1/0 split, not 0/0 or double-counted
+    const fresh = await getPoll(res.poll.id);
+    expect(fresh).not.toBeNull();
+    expect(fresh!.id).toBe(res.poll.id);
+    expect(fresh!.options.find((o) => o.id === optA.id)?.votes).toBe(1);
+    expect(fresh!.options.find((o) => o.id === optB.id)?.votes).toBe(0);
+    expect(fresh!.options.reduce((a, o) => a + o.votes, 0)).toBe(1);
+    expect(fresh!.options.map((o) => o.position)).toEqual([0, 1]);
+    for (const o of fresh!.options) expect(o.poll_id).toBe(fresh!.id);
+  });
 });
